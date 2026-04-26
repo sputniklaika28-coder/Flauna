@@ -1,0 +1,36 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^apps/gm/
+      - id: ruff-format
+        files: ^apps/gm/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        files: ^apps/gm/src/
+        args: [--strict, --ignore-missing-imports]
+        additional_dependencies:
+          - pydantic>=2.7
+          - fastapi>=0.111
+          - anthropic>=0.26
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        files: ^apps/web/
+        types_or: [ts, tsx, json, yaml, markdown]
+
+  - repo: local
+    hooks:
+      - id: ws-schema-check
+        name: ws-schema idempotency check
+        language: script
+        entry: packages/ws-schema/scripts/check.sh
+        pass_filenames: false
+        files: ^(packages/ws-schema/|apps/gm/src/tacex_gm/ws/)

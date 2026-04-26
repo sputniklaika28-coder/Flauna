@@ -1,0 +1,48 @@
+name: Web Client CI
+
+on:
+  push:
+    paths:
+      - "apps/web/**"
+      - "packages/ws-schema/**"
+      - ".github/workflows/web.yml"
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "packages/ws-schema/**"
+      - ".github/workflows/web.yml"
+
+defaults:
+  run:
+    working-directory: apps/web
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Build
+        run: pnpm build

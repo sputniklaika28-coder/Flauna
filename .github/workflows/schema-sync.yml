@@ -1,0 +1,45 @@
+name: WS Schema Sync Check
+
+on:
+  push:
+    paths:
+      - "apps/gm/src/tacex_gm/ws/messages.py"
+      - "apps/gm/src/tacex_gm/errors.py"
+      - "packages/ws-schema/**"
+      - ".github/workflows/schema-sync.yml"
+  pull_request:
+    paths:
+      - "apps/gm/src/tacex_gm/ws/messages.py"
+      - "apps/gm/src/tacex_gm/errors.py"
+      - "packages/ws-schema/**"
+      - ".github/workflows/schema-sync.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install GM deps
+        run: uv sync
+        working-directory: apps/gm
+
+      - name: Install ws-schema deps
+        run: pnpm install --frozen-lockfile
+        working-directory: .
+
+      - name: Check schema idempotency
+        run: bash packages/ws-schema/scripts/check.sh

@@ -1,0 +1,40 @@
+name: GM Server CI
+
+on:
+  push:
+    paths:
+      - "apps/gm/**"
+      - ".github/workflows/gm.yml"
+  pull_request:
+    paths:
+      - "apps/gm/**"
+      - ".github/workflows/gm.yml"
+
+defaults:
+  run:
+    working-directory: apps/gm
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+
+      - name: Lint (ruff)
+        run: uv run ruff check src tests
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check src tests
+
+      - name: Type check (mypy)
+        run: uv run mypy --strict src/tacex_gm
+
+      - name: Tests
+        run: uv run pytest --cov=tacex_gm --cov-report=term-missing -v
