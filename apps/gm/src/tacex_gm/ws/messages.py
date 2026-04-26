@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
-
 
 # ---------------------------------------------------------------------------
 # Client → Server messages
 # ---------------------------------------------------------------------------
+
 
 class JoinRoom(BaseModel):
     action: Literal["join_room"]
@@ -53,13 +53,7 @@ class PlayerStatement(BaseModel):
 
 
 ClientMessage = Annotated[
-    Union[
-        JoinRoom,
-        SubmitTurnAction,
-        SubmitEvasion,
-        SubmitDeathAvoidance,
-        PlayerStatement,
-    ],
+    JoinRoom | SubmitTurnAction | SubmitEvasion | SubmitDeathAvoidance | PlayerStatement,
     Field(discriminator="action"),
 ]
 
@@ -67,6 +61,7 @@ ClientMessage = Annotated[
 # ---------------------------------------------------------------------------
 # Server → Client messages
 # ---------------------------------------------------------------------------
+
 
 class SessionRestore(BaseModel):
     type: Literal["session_restore"]
@@ -151,17 +146,15 @@ class ErrorMessage(BaseModel):
 
 
 ServerMessage = Annotated[
-    Union[
-        SessionRestore,
-        StateUpdate,
-        StateFull,
-        GmNarrative,
-        GameEventMessage,
-        AiThinking,
-        EvadeRequired,
-        AiFallbackNotice,
-        SessionLost,
-        ErrorMessage,
-    ],
+    SessionRestore
+    | StateUpdate
+    | StateFull
+    | GmNarrative
+    | GameEventMessage
+    | AiThinking
+    | EvadeRequired
+    | AiFallbackNotice
+    | SessionLost
+    | ErrorMessage,
     Field(discriminator="type"),
 ]

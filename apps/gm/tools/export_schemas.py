@@ -10,8 +10,8 @@ from pathlib import Path
 # Allow running as `uv run python tools/export_schemas.py` from apps/gm/
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from tacex_gm.ws.messages import ClientMessage, ServerMessage  # noqa: E402
 from tacex_gm.errors import ErrorCode  # noqa: E402
+from tacex_gm.ws.messages import ClientMessage, ServerMessage  # noqa: E402
 
 out_dir = Path(
     os.environ.get(

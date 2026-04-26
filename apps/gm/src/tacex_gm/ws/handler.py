@@ -5,14 +5,20 @@ import json
 import logging
 
 from fastapi import WebSocket, WebSocketDisconnect
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from tacex_gm.errors import CloseCode, ErrorCode
-from tacex_gm.ws.messages import ClientMessage, ErrorMessage, SessionRestore
+from tacex_gm.ws.messages import (
+    ClientMessage,
+    ErrorMessage,
+    JoinRoom,
+    SessionRestore,
+)
 
 logger = logging.getLogger(__name__)
 
 _event_counter: dict[str, int] = {}
+_client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
 
 
 def _next_event_id(room_id: str) -> int:
@@ -21,7 +27,7 @@ def _next_event_id(room_id: str) -> int:
 
 
 def _now() -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+    return datetime.datetime.now(datetime.UTC).isoformat()
 
 
 async def handle_room_websocket(websocket: WebSocket, room_id: str) -> None:
@@ -32,7 +38,7 @@ async def handle_room_websocket(websocket: WebSocket, room_id: str) -> None:
         raw = await websocket.receive_text()
         try:
             data = json.loads(raw)
-            msg = ClientMessage.model_validate(data)  # type: ignore[arg-type]
+            msg = _client_message_adapter.validate_python(data)
         except (json.JSONDecodeError, ValidationError) as exc:
             err = ErrorMessage(
                 type="error",
@@ -45,7 +51,7 @@ async def handle_room_websocket(websocket: WebSocket, room_id: str) -> None:
             await websocket.close(code=CloseCode.AUTH_FAILED)
             return
 
-        if msg.action != "join_room":  # type: ignore[union-attr]
+        if not isinstance(msg, JoinRoom):
             err = ErrorMessage(
                 type="error",
                 event_id=_next_event_id(room_id),

@@ -1,4 +1,4 @@
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 from tacex_gm.main import app
 

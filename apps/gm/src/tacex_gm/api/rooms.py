@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import nanoid  # type: ignore[import-untyped]
-
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
@@ -71,7 +70,9 @@ async def join_room(room_id: str, req: JoinRoomRequest) -> JoinRoomResponse:
     if room is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "ROOM_NOT_FOUND", "message": "指定されたルームが見つかりません"}},
+            detail={
+                "error": {"code": "ROOM_NOT_FOUND", "message": "指定されたルームが見つかりません"}
+            },
         )
     player_id = f"player-{nanoid.generate(size=8)}"
     player_token = issue_player_token(room_id, player_id)
