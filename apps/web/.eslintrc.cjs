@@ -27,5 +27,8 @@ module.exports = {
   rules: {
     "react/react-in-jsx-scope": "off",
     "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+    // i18next and similar packages intentionally re-export their default as a named export
+    "import/no-named-as-default": "off",
+    "import/no-named-as-default-member": "off",
   },
 };

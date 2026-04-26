@@ -1,0 +1,217 @@
+{
+  "$defs": {
+    "JoinRoom": {
+      "properties": {
+        "action": {
+          "const": "join_room",
+          "title": "Action",
+          "type": "string"
+        },
+        "player_id": {
+          "title": "Player Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "auth_token": {
+          "title": "Auth Token",
+          "type": "string"
+        },
+        "last_seen_event_id": {
+          "title": "Last Seen Event Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "player_id",
+        "room_id",
+        "auth_token",
+        "last_seen_event_id"
+      ],
+      "title": "JoinRoom",
+      "type": "object"
+    },
+    "PlayerStatement": {
+      "properties": {
+        "action": {
+          "const": "player_statement",
+          "title": "Action",
+          "type": "string"
+        },
+        "player_id": {
+          "title": "Player Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "client_request_id": {
+          "title": "Client Request Id",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "player_id",
+        "room_id",
+        "client_request_id",
+        "text"
+      ],
+      "title": "PlayerStatement",
+      "type": "object"
+    },
+    "SubmitDeathAvoidance": {
+      "properties": {
+        "action": {
+          "const": "submit_death_avoidance",
+          "title": "Action",
+          "type": "string"
+        },
+        "player_id": {
+          "title": "Player Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "client_request_id": {
+          "title": "Client Request Id",
+          "type": "string"
+        },
+        "pending_id": {
+          "title": "Pending Id",
+          "type": "string"
+        },
+        "use_katashiro": {
+          "title": "Use Katashiro",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "player_id",
+        "room_id",
+        "client_request_id",
+        "pending_id",
+        "use_katashiro"
+      ],
+      "title": "SubmitDeathAvoidance",
+      "type": "object"
+    },
+    "SubmitEvasion": {
+      "properties": {
+        "action": {
+          "const": "submit_evasion",
+          "title": "Action",
+          "type": "string"
+        },
+        "player_id": {
+          "title": "Player Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "client_request_id": {
+          "title": "Client Request Id",
+          "type": "string"
+        },
+        "pending_id": {
+          "title": "Pending Id",
+          "type": "string"
+        },
+        "dice_result": {
+          "title": "Dice Result",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "player_id",
+        "room_id",
+        "client_request_id",
+        "pending_id",
+        "dice_result"
+      ],
+      "title": "SubmitEvasion",
+      "type": "object"
+    },
+    "SubmitTurnAction": {
+      "properties": {
+        "action": {
+          "const": "submit_turn_action",
+          "title": "Action",
+          "type": "string"
+        },
+        "player_id": {
+          "title": "Player Id",
+          "type": "string"
+        },
+        "room_id": {
+          "title": "Room Id",
+          "type": "string"
+        },
+        "client_request_id": {
+          "title": "Client Request Id",
+          "type": "string"
+        },
+        "expected_version": {
+          "title": "Expected Version",
+          "type": "integer"
+        },
+        "turn_action": {
+          "additionalProperties": true,
+          "title": "Turn Action",
+          "type": "object"
+        }
+      },
+      "required": [
+        "action",
+        "player_id",
+        "room_id",
+        "client_request_id",
+        "expected_version",
+        "turn_action"
+      ],
+      "title": "SubmitTurnAction",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "join_room": "#/$defs/JoinRoom",
+      "player_statement": "#/$defs/PlayerStatement",
+      "submit_death_avoidance": "#/$defs/SubmitDeathAvoidance",
+      "submit_evasion": "#/$defs/SubmitEvasion",
+      "submit_turn_action": "#/$defs/SubmitTurnAction"
+    },
+    "propertyName": "action"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/JoinRoom"
+    },
+    {
+      "$ref": "#/$defs/SubmitTurnAction"
+    },
+    {
+      "$ref": "#/$defs/SubmitEvasion"
+    },
+    {
+      "$ref": "#/$defs/SubmitDeathAvoidance"
+    },
+    {
+      "$ref": "#/$defs/PlayerStatement"
+    }
+  ]
+}

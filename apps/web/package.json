@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0",
     "test": "vitest run",
@@ -39,6 +39,7 @@
     "eslint": "^8.57",
     "eslint-plugin-import": "^2.29",
     "eslint-plugin-react": "^7.34",
+    "eslint-import-resolver-typescript": "^3.6",
     "eslint-plugin-react-hooks": "^4.6",
     "jsdom": "^24.1",
     "postcss": "^8.4",

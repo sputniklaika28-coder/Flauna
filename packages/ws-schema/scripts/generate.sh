@@ -3,8 +3,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../" && pwd)"
 GM_DIR="$REPO_ROOT/apps/gm"
-SCHEMA_DIR="$REPO_ROOT/packages/ws-schema/schemas"
-TS_DIR="$REPO_ROOT/packages/ws-schema/ts"
+WS_SCHEMA_DIR="$REPO_ROOT/packages/ws-schema"
 
 echo "==> Exporting JSON Schemas from Pydantic..."
 cd "$GM_DIR"
@@ -12,28 +11,32 @@ uv run python tools/export_schemas.py
 cd "$REPO_ROOT"
 
 echo "==> Generating TypeScript types from JSON Schema..."
-pnpm exec json-schema-to-typescript \
-  "$SCHEMA_DIR/client_message.json" \
-  "$SCHEMA_DIR/server_message.json" \
-  --no-additionalProperties \
-  --out "$TS_DIR/generated.ts" 2>/dev/null || \
-  node -e "
-    const { compileFromFile } = require('json-schema-to-typescript');
-    const fs = require('fs');
-    Promise.all([
-      compileFromFile('$SCHEMA_DIR/client_message.json'),
-      compileFromFile('$SCHEMA_DIR/server_message.json'),
-    ]).then(([c, s]) => fs.writeFileSync('$TS_DIR/generated.ts', c + '\n' + s));
-  "
+# Run from ws-schema directory so ESM imports resolve against its node_modules
+cd "$WS_SCHEMA_DIR"
+node --input-type=module <<'JSEOF'
+import { compileFromFile } from 'json-schema-to-typescript';
+import { writeFileSync } from 'fs';
+
+const header = '// AUTO-GENERATED — do not edit manually. Run: bash packages/ws-schema/scripts/generate.sh\n\n';
+const [client, server] = await Promise.all([
+  compileFromFile('./schemas/client_message.json', { additionalProperties: false }),
+  compileFromFile('./schemas/server_message.json', { additionalProperties: false }),
+]);
+writeFileSync('./ts/generated.ts', header + client + '\n' + server);
+console.log('Generated ts/generated.ts');
+JSEOF
+cd "$REPO_ROOT"
 
 echo "==> Generating error_codes.ts..."
-node --input-type=module <<'EOF'
+cd "$WS_SCHEMA_DIR"
+node --input-type=module <<'JSEOF'
 import { readFileSync, writeFileSync } from 'fs';
-const data = JSON.parse(readFileSync('packages/ws-schema/schemas/error_codes.json', 'utf8'));
+const data = JSON.parse(readFileSync('./schemas/error_codes.json', 'utf8'));
 const codes = data.error_codes;
 const enumLines = codes.map(c => `  ${c} = "${c}",`).join('\n');
 const ts = `// AUTO-GENERATED — do not edit manually. Run: bash packages/ws-schema/scripts/generate.sh
-export enum ErrorCode {\n${enumLines}\n}\n
+export enum ErrorCode {\n${enumLines}\n}
+
 export const CLOSE_CODES = {
   NORMAL: 1000,
   CLIENT_LEAVING: 1001,
@@ -44,7 +47,9 @@ export const CLOSE_CODES = {
   RATE_LIMITED: 4004,
   DUPLICATE_CONNECTION: 4005,
 } as const;\n`;
-writeFileSync('packages/ws-schema/ts/error_codes.ts', ts);
-EOF
+writeFileSync('./ts/error_codes.ts', ts);
+console.log('Generated ts/error_codes.ts');
+JSEOF
+cd "$REPO_ROOT"
 
 echo "==> Done. Schema artifacts updated in packages/ws-schema/"
