@@ -1,0 +1,10 @@
+services:
+  pytest:
+    build: .
+    command: uv run pytest
+    environment:
+      - ANTHROPIC_API_KEY=mock
+      - LOG_LEVEL=WARNING
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro

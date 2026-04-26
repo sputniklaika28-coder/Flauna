@@ -1,0 +1,431 @@
+{
+  "$defs": {
+    "AiFallbackNotice": {
+      "properties": {
+        "type": {
+          "const": "ai_fallback_notice",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "reason"
+      ],
+      "title": "AiFallbackNotice",
+      "type": "object"
+    },
+    "AiThinking": {
+      "properties": {
+        "type": {
+          "const": "ai_thinking",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "stage"
+      ],
+      "title": "AiThinking",
+      "type": "object"
+    },
+    "ErrorMessage": {
+      "properties": {
+        "type": {
+          "const": "error",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "client_request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Request Id"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "code",
+        "message"
+      ],
+      "title": "ErrorMessage",
+      "type": "object"
+    },
+    "EvadeRequired": {
+      "properties": {
+        "type": {
+          "const": "evade_required",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "pending_id": {
+          "title": "Pending Id",
+          "type": "string"
+        },
+        "attacker_id": {
+          "title": "Attacker Id",
+          "type": "string"
+        },
+        "target_id": {
+          "title": "Target Id",
+          "type": "string"
+        },
+        "deadline_seconds": {
+          "title": "Deadline Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "pending_id",
+        "attacker_id",
+        "target_id",
+        "deadline_seconds"
+      ],
+      "title": "EvadeRequired",
+      "type": "object"
+    },
+    "GameEventMessage": {
+      "properties": {
+        "type": {
+          "const": "event",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "event_name": {
+          "title": "Event Name",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "event_name",
+        "payload"
+      ],
+      "title": "GameEventMessage",
+      "type": "object"
+    },
+    "GmNarrative": {
+      "properties": {
+        "type": {
+          "const": "gm_narrative",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "is_streaming": {
+          "default": false,
+          "title": "Is Streaming",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "text"
+      ],
+      "title": "GmNarrative",
+      "type": "object"
+    },
+    "SessionLost": {
+      "properties": {
+        "type": {
+          "const": "session_lost",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "reason"
+      ],
+      "title": "SessionLost",
+      "type": "object"
+    },
+    "SessionRestore": {
+      "properties": {
+        "type": {
+          "const": "session_restore",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "incremental",
+            "full_sync"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "current_state": {
+          "additionalProperties": true,
+          "title": "Current State",
+          "type": "object"
+        },
+        "missed_events": {
+          "default": [],
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Missed Events",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "mode",
+        "current_state"
+      ],
+      "title": "SessionRestore",
+      "type": "object"
+    },
+    "StateFull": {
+      "properties": {
+        "type": {
+          "const": "state_full",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        },
+        "state": {
+          "additionalProperties": true,
+          "title": "State",
+          "type": "object"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "version",
+        "state"
+      ],
+      "title": "StateFull",
+      "type": "object"
+    },
+    "StateUpdate": {
+      "properties": {
+        "type": {
+          "const": "state_update",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        },
+        "patch": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Patch",
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "version",
+        "patch"
+      ],
+      "title": "StateUpdate",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "ai_fallback_notice": "#/$defs/AiFallbackNotice",
+      "ai_thinking": "#/$defs/AiThinking",
+      "error": "#/$defs/ErrorMessage",
+      "evade_required": "#/$defs/EvadeRequired",
+      "event": "#/$defs/GameEventMessage",
+      "gm_narrative": "#/$defs/GmNarrative",
+      "session_lost": "#/$defs/SessionLost",
+      "session_restore": "#/$defs/SessionRestore",
+      "state_full": "#/$defs/StateFull",
+      "state_update": "#/$defs/StateUpdate"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SessionRestore"
+    },
+    {
+      "$ref": "#/$defs/StateUpdate"
+    },
+    {
+      "$ref": "#/$defs/StateFull"
+    },
+    {
+      "$ref": "#/$defs/GmNarrative"
+    },
+    {
+      "$ref": "#/$defs/GameEventMessage"
+    },
+    {
+      "$ref": "#/$defs/AiThinking"
+    },
+    {
+      "$ref": "#/$defs/EvadeRequired"
+    },
+    {
+      "$ref": "#/$defs/AiFallbackNotice"
+    },
+    {
+      "$ref": "#/$defs/SessionLost"
+    },
+    {
+      "$ref": "#/$defs/ErrorMessage"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+.venv/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+*.egg-info/
+.eggs/
+htmlcov/
+.coverage
+.coverage.*
+
+# Node
+node_modules/
+.vite/
+coverage/
+playwright-report/
+storybook-static/
+
+# Build outputs (apps/web)
+apps/web/dist/
+
+# IDE
+.idea/
+.vscode/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated schema artifacts are intentionally tracked for CI diff check
+# packages/ws-schema/schemas/ and packages/ws-schema/ts/ are NOT ignored

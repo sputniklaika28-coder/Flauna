@@ -1,0 +1,62 @@
+name: Schema Sync
+
+on:
+  push:
+    paths:
+      - "apps/gm/src/tacex_gm/ws/**"
+      - "apps/gm/src/tacex_gm/errors.py"
+      - "apps/gm/tools/export_schemas.py"
+      - "packages/ws-schema/**"
+      - "docs/tacex_ws_schema_v1_0.md"
+      - ".github/workflows/schema-sync.yml"
+  pull_request:
+    paths:
+      - "apps/gm/src/tacex_gm/ws/**"
+      - "apps/gm/src/tacex_gm/errors.py"
+      - "apps/gm/tools/export_schemas.py"
+      - "packages/ws-schema/**"
+      - "docs/tacex_ws_schema_v1_0.md"
+      - ".github/workflows/schema-sync.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.11
+        working-directory: apps/gm
+
+      - name: Install GM dependencies
+        run: uv sync --all-extras
+        working-directory: apps/gm
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: "9"
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run schema generation
+        run: bash packages/ws-schema/scripts/generate.sh
+
+      - name: Check for schema drift
+        run: |
+          git diff --exit-code packages/ws-schema/ || {
+            echo "Schema drift detected! Run 'bash packages/ws-schema/scripts/generate.sh' and commit."
+            exit 1
+          }
