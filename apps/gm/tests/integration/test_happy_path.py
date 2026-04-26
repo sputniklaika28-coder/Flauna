@@ -6,12 +6,9 @@ End-to-end flow:
   3. POST /api/v1/rooms/{id}/join → player token
   4. WebSocket connect → join_room → session_restore received
 """
-import json
-
 import pytest
 from httpx import AsyncClient
 from starlette.testclient import TestClient
-from starlette.websockets import WebSocketDisconnect
 
 from tacex_gm.main import app
 
@@ -78,10 +75,8 @@ def test_websocket_join_room() -> None:
         )
         assert create_resp.status_code == 200
         room_id = create_resp.json()["room_id"]
-        master_token = create_resp.json()["master_token"]
-        master_player_id = None
 
-        # Figure out master player_id from join
+        # Figure out player_id via join
         join_resp = tc.post(
             f"/api/v1/rooms/{room_id}/join",
             json={"player_name": "Alice"},

@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from tacex_gm import auth, room as room_mod
+from tacex_gm import auth
+from tacex_gm.room import manager as room_mod
 from tacex_gm.errors import CloseCode, ErrorCode
 from tacex_gm.ws.messages import ErrorMessage, JoinRoomMessage, SessionRestoreMessage
 
