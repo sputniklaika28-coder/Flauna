@@ -1,0 +1,27 @@
+name: Schema Sync CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - "apps/gm/src/tacex_gm/ws/messages.py"
+      - "packages/ws-schema/**"
+      - ".github/workflows/schema-sync.yml"
+  pull_request:
+    paths:
+      - "apps/gm/src/tacex_gm/ws/messages.py"
+      - "packages/ws-schema/**"
+      - ".github/workflows/schema-sync.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Install GM dependencies
+        run: cd apps/gm && uv sync
+      - name: Check schema idempotency
+        run: bash packages/ws-schema/scripts/check.sh

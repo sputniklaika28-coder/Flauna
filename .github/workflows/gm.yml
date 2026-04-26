@@ -1,0 +1,36 @@
+name: GM Server CI
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - "apps/gm/**"
+      - "packages/ws-schema/**"
+      - ".github/workflows/gm.yml"
+  pull_request:
+    paths:
+      - "apps/gm/**"
+      - "packages/ws-schema/**"
+      - ".github/workflows/gm.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/gm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - name: Install dependencies
+        run: uv sync
+      - name: Lint
+        run: uv run ruff check src tests tools
+      - name: Format check
+        run: uv run ruff format --check src tests tools
+      - name: Type check
+        run: uv run mypy src
+      - name: Tests
+        run: uv run pytest

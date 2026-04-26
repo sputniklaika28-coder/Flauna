@@ -1,0 +1,9 @@
+{
+  "name": "@tacex/ws-schema",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "generate": "bash scripts/generate.sh",
+    "check": "bash scripts/check.sh"
+  }
+}
