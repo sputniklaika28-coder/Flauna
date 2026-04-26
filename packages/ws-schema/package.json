@@ -1,0 +1,19 @@
+{
+  "name": "@flauna/ws-schema",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./ts/index.ts",
+  "types": "./ts/index.ts",
+  "exports": {
+    ".": "./ts/index.ts"
+  },
+  "scripts": {
+    "generate": "bash scripts/generate.sh",
+    "check": "bash scripts/check.sh"
+  },
+  "devDependencies": {
+    "json-schema-to-typescript": "^14.1",
+    "json-schema-to-zod": "^2.3"
+  }
+}
