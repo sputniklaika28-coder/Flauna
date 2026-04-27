@@ -1,60 +1,34 @@
+"""WebSocket handler integration tests (Phase 2)."""
+
 from __future__ import annotations
 
 import json
 
-import pytest
-from starlette.testclient import TestClient
 
-from tacex_gm.main import app
-from tacex_gm.ws.handler import _event_counter
-
-
-@pytest.fixture(autouse=True)
-def clear_event_counter():
-    _event_counter.clear()
-    yield
-    _event_counter.clear()
-
-
-def _join_payload(room_id: str = "room-test") -> str:
+def _join_payload(room_id: str, player_id: str, token: str) -> str:
     return json.dumps(
         {
             "action": "join_room",
-            "player_id": "player-1",
+            "player_id": player_id,
             "room_id": room_id,
-            "auth_token": "tok",
+            "auth_token": token,
             "last_seen_event_id": 0,
         }
     )
 
 
 class TestWebSocketHandler:
-    def test_join_room_receives_session_restore(self):
-        with TestClient(app) as client, client.websocket_connect("/room/room-test") as ws:
-            ws.send_text(_join_payload())
-            data = ws.receive_json()
-        assert data["type"] == "session_restore"
-        assert data["mode"] == "incremental"
-        assert "event_id" in data
-        assert "current_state" in data
-
-    def test_join_room_echo_after_restore(self):
-        with TestClient(app) as client, client.websocket_connect("/room/room-test") as ws:
-            ws.send_text(_join_payload())
-            ws.receive_json()  # session_restore
-            ws.send_text(json.dumps({"hello": "world"}))
-            echoed = ws.receive_json()
-        assert echoed == {"hello": "world"}
-
-    def test_invalid_json_returns_error_and_closes(self):
-        with TestClient(app) as client, client.websocket_connect("/room/room-bad") as ws:
-            ws.send_text("not json at all")
+    def test_invalid_json_returns_error(self, sync_client):
+        """Non-JSON payload → error message, then close."""
+        with sync_client.websocket_connect("/room/room-bad") as ws:
+            ws.send_text("not json at all ~~~~")
             data = ws.receive_json()
         assert data["type"] == "error"
         assert data["code"] == "INVALID_MESSAGE"
 
-    def test_non_join_first_message_returns_error(self):
-        with TestClient(app) as client, client.websocket_connect("/room/room-bad") as ws:
+    def test_non_join_first_message_returns_error(self, sync_client):
+        """First WS message must be join_room."""
+        with sync_client.websocket_connect("/room/room-bad") as ws:
             ws.send_text(
                 json.dumps(
                     {
@@ -71,14 +45,61 @@ class TestWebSocketHandler:
         assert data["code"] == "INVALID_MESSAGE"
         assert "join_room" in data["message"]
 
-    def test_event_ids_increment_within_room(self):
-        with TestClient(app) as client, client.websocket_connect("/room/room-incr") as ws:
-            ws.send_text(_join_payload("room-incr"))
-            restore = ws.receive_json()
-        first_id = restore["event_id"]
-        assert first_id >= 1
+    def test_invalid_token_returns_error(self, sync_client):
+        """Invalid auth_token → AUTH_INVALID_TOKEN."""
+        with sync_client.websocket_connect("/room/room-x") as ws:
+            ws.send_text(
+                json.dumps(
+                    {
+                        "action": "join_room",
+                        "player_id": "p1",
+                        "room_id": "room-x",
+                        "auth_token": "bad-token",
+                        "last_seen_event_id": 0,
+                    }
+                )
+            )
+            data = ws.receive_json()
+        assert data["type"] == "error"
+        assert data["code"] == "AUTH_INVALID_TOKEN"
 
-        with TestClient(app) as client, client.websocket_connect("/room/room-incr") as ws:
-            ws.send_text(_join_payload("room-incr"))
-            restore2 = ws.receive_json()
-        assert restore2["event_id"] > first_id
+    def test_valid_join_receives_session_restore(self, sync_client, room_data):
+        """Happy path: valid join_room → session_restore with game state."""
+        room_id = room_data["room_id"]
+        player_id = room_data["player_id"]
+        player_token = room_data["player_token"]
+
+        with sync_client.websocket_connect(f"/room/{room_id}") as ws:
+            ws.send_text(_join_payload(room_id, player_id, player_token))
+            data = ws.receive_json()
+
+        assert data["type"] == "session_restore"
+        assert data["mode"] == "full_sync"
+        assert "current_state" in data
+        state = data["current_state"]
+        assert state["room_id"] == room_id
+        assert len(state["characters"]) >= 2
+        # PC should be in the roster
+        factions = {c["faction"] for c in state["characters"]}
+        assert "pc" in factions
+        assert "enemy" in factions
+
+    def test_token_for_wrong_room_rejected(self, sync_client, room_data):
+        """Token issued for room-A must not work for room-B."""
+        # room_data token is for the correct room; try a different room path
+        player_token = room_data["player_token"]
+        with sync_client.websocket_connect("/room/room-other") as ws:
+            ws.send_text(
+                json.dumps(
+                    {
+                        "action": "join_room",
+                        "player_id": room_data["player_id"],
+                        "room_id": "room-other",
+                        "auth_token": player_token,
+                        "last_seen_event_id": 0,
+                    }
+                )
+            )
+            data = ws.receive_json()
+        assert data["type"] == "error"
+        assert data["code"] in ("AUTH_INVALID_TOKEN", "ROOM_NOT_FOUND")

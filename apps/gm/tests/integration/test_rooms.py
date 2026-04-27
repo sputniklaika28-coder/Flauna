@@ -1,20 +1,12 @@
+"""HTTP room API integration tests (Phase 2)."""
+
 from __future__ import annotations
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from tacex_gm.api.rooms import _rooms
-from tacex_gm.auth import _tokens
+from tacex_gm.auth import verify_token
 from tacex_gm.main import app
-
-
-@pytest.fixture(autouse=True)
-def clear_state():
-    _rooms.clear()
-    _tokens.clear()
-    yield
-    _rooms.clear()
-    _tokens.clear()
 
 
 @pytest.fixture
@@ -38,32 +30,32 @@ async def test_create_room_known_scenario(client: AsyncClient) -> None:
     assert data["scenario_title"] == "最初の任務"
     assert data["room_id"].startswith("room-")
     assert len(data["master_token"]) > 10
+    # Phase 2: create also returns player credentials
+    assert data["player_id"].startswith("player-")
+    assert len(data["player_token"]) > 10
 
 
-async def test_create_room_unknown_scenario_uses_id_as_title(client: AsyncClient) -> None:
+async def test_create_room_unknown_scenario_returns_404(client: AsyncClient) -> None:
     resp = await client.post(
         "/api/v1/rooms",
-        json={"scenario_id": "custom_scenario", "player_name": "GM"},
+        json={"scenario_id": "no_such_scenario", "player_name": "GM"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["scenario_title"] == "custom_scenario"
+    assert resp.status_code == 404
+    assert resp.json()["detail"]["error"]["code"] == "SCENARIO_NOT_FOUND"
 
 
-async def test_create_room_stores_in_registry(client: AsyncClient) -> None:
+async def test_create_room_registers_in_store(client: AsyncClient) -> None:
     resp = await client.post(
         "/api/v1/rooms",
         json={"scenario_id": "first_mission", "player_name": "GM"},
     )
     room_id = resp.json()["room_id"]
-    assert room_id in _rooms
-    assert _rooms[room_id]["scenario_id"] == "first_mission"
-    assert _rooms[room_id]["gm_name"] == "GM"
+    session = app.state.room_store.get_session(room_id)
+    assert session is not None
+    assert session.scenario_id == "first_mission"
 
 
 async def test_create_room_master_token_is_valid(client: AsyncClient) -> None:
-    from tacex_gm.auth import verify_token
-
     resp = await client.post(
         "/api/v1/rooms",
         json={"scenario_id": "first_mission", "player_name": "GM"},
@@ -73,6 +65,19 @@ async def test_create_room_master_token_is_valid(client: AsyncClient) -> None:
     assert payload is not None
     assert payload["role"] == "master"
     assert payload["room_id"] == data["room_id"]
+
+
+async def test_create_room_player_token_is_valid(client: AsyncClient) -> None:
+    resp = await client.post(
+        "/api/v1/rooms",
+        json={"scenario_id": "first_mission", "player_name": "GM"},
+    )
+    data = resp.json()
+    payload = verify_token(data["player_token"])
+    assert payload is not None
+    assert payload["role"] == "player"
+    assert payload["room_id"] == data["room_id"]
+    assert payload["player_id"] == data["player_id"]
 
 
 async def test_create_room_ids_are_unique(client: AsyncClient) -> None:
@@ -124,8 +129,6 @@ async def test_join_room_success(client: AsyncClient) -> None:
 
 
 async def test_join_room_player_token_is_valid(client: AsyncClient) -> None:
-    from tacex_gm.auth import verify_token
-
     room = await _create_room(client)
     resp = await client.post(
         f"/api/v1/rooms/{room['room_id']}/join",
