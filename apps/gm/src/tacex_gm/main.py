@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
+from tacex_gm.ai.backend import LLMBackend
 from tacex_gm.ai.mock_backend import MockLLMBackend
 from tacex_gm.ai.narration_engine import NarrationTemplateEngine
 from tacex_gm.api.rooms import router as rooms_router
@@ -33,12 +34,11 @@ def _load_resources() -> RoomStore:
     narration_engine = NarrationTemplateEngine(narration_templates)
 
     # Use MockLLMBackend unless a real API key is configured.
+    llm_backend: LLMBackend = MockLLMBackend()
     if settings.anthropic_api_key:
         from tacex_gm.ai.anthropic_backend import AnthropicBackend
 
         llm_backend = AnthropicBackend(api_key=settings.anthropic_api_key)
-    else:
-        llm_backend = MockLLMBackend()
 
     lock_registry = RoomLockRegistry()
 

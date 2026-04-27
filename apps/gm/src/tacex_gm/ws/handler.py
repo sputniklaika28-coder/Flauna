@@ -557,48 +557,48 @@ async def _run_npc_turn(
 
         weapon = attack_context["weapon"]
         actor_char: Character = attack_context["actor"]
-        hits: list[IncomingAttack] = attack_context["hits"]
+        attack_hits: list[IncomingAttack] = attack_context["hits"]
 
-        target = state.find_character(evasion_request.target_character_id)
-        if target is None:
+        evade_target = state.find_character(evasion_request.target_character_id)
+        if evade_target is None:
             state = _advance_turn(state)
             state = state.model_copy(update={"machine_state": MachineState.IDLE})
             session.state = state
             return
 
         dice_used = evasion_msg.dice_result if evasion_msg is not None else 0
-        dice_used = max(0, min(dice_used, target.evasion_dice))
+        dice_used = max(0, min(dice_used, evade_target.evasion_dice))
 
         evasion_outcome = await resolve_evasion(
             pending_id=evasion_request.pending_id,
-            target=target,
+            target=evade_target,
             dice_used=dice_used,
             dice_engine=dice,
         )
 
         if evasion_outcome.succeeded:
-            narrative_parts.append(f"{target.name}は{actor_char.name}の攻撃を回避した！")
+            narrative_parts.append(f"{evade_target.name}は{actor_char.name}の攻撃を回避した！")
         else:
-            for _ in hits:
+            for _ in attack_hits:
                 dmg = await compute_damage(
-                    attacker=actor_char, target=target, weapon=weapon, dice_engine=dice
+                    attacker=actor_char, target=evade_target, weapon=weapon, dice_engine=dice
                 )
-                new_target = apply_damage(target, dmg)
+                new_target = apply_damage(evade_target, dmg)
                 state = _replace_character(state, new_target)
                 session.state = state
-                summary.damage_dealt[target.id] = (
-                    summary.damage_dealt.get(target.id, 0) + dmg.final_damage
+                summary.damage_dealt[evade_target.id] = (
+                    summary.damage_dealt.get(evade_target.id, 0) + dmg.final_damage
                 )
                 narrative_parts.append(
-                    f"{actor_char.name}の{weapon.name}が{target.name}に{dmg.final_damage}ダメージ！"
+                    f"{actor_char.name}の{weapon.name}が{evade_target.name}に{dmg.final_damage}ダメージ！"
                     f"（残りHP: {new_target.hp}/{new_target.max_hp}）"
                 )
                 if not new_target.is_alive:
-                    narrative_parts.append(f"{target.name}は倒れた！")
+                    narrative_parts.append(f"{evade_target.name}は倒れた！")
                     await _emit_event(
-                        websocket, state, "character_died", {"character_id": target.id}
+                        websocket, state, "character_died", {"character_id": evade_target.id}
                     )
-                target = new_target
+                evade_target = new_target
 
         # Consume evasion dice (simplified: reset to max after each turn).
         # Full evasion-dice-per-round tracking is Phase 3+.

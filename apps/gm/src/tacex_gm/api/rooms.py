@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 import nanoid  # type: ignore[import-untyped]
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -54,7 +56,7 @@ class JoinRoomResponse(BaseModel):
 
 
 def get_room_store(request: Request) -> RoomStore:
-    return request.app.state.room_store
+    return cast(RoomStore, request.app.state.room_store)
 
 
 # ---------------------------------------------------------------------------
