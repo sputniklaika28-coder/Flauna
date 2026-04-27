@@ -4,17 +4,12 @@ import pytest
 from pydantic import TypeAdapter, ValidationError
 
 from tacex_gm.ws.messages import (
-    AiFallbackNotice,
-    AiThinking,
     ClientMessage,
     ErrorMessage,
-    EvadeRequired,
-    GameEventMessage,
     GmNarrative,
     JoinRoom,
     PlayerStatement,
     ServerMessage,
-    SessionLost,
     SessionRestore,
     StateFull,
     StateUpdate,
