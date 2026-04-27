@@ -1,0 +1,122 @@
+# エネミーテンプレート (GM spec §14-2)
+# Phase 1: MVP に必要な3〜5種類を整備。
+enemies:
+  - id: "ukkoku_ageha"
+    name: "鬱黒揚羽"
+    faction: "enemy"
+    is_boss: false
+    tai: 4
+    rei: 3
+    kou: 5
+    jutsu: 0
+    max_hp: 18
+    max_mp: 0
+    hp: 18
+    mp: 0
+    evasion_dice: 3
+    max_evasion_dice: 3
+    armor_value: 0
+    equipped_weapons: ["kogatana"]
+    skills: []
+    arts: []
+    aptitudes: ["白兵戦適性"]
+    evasion_policy:
+      aggression: 0.6
+      save_dice_threshold: 1
+    description: "MVP の標準敵。素早い近接型。"
+
+  - id: "akakuro_mukade"
+    name: "赤黒百足"
+    faction: "enemy"
+    is_boss: false
+    tai: 6
+    rei: 2
+    kou: 3
+    jutsu: 0
+    max_hp: 24
+    max_mp: 0
+    hp: 24
+    mp: 0
+    evasion_dice: 2
+    max_evasion_dice: 2
+    armor_value: 1
+    equipped_weapons: ["kogatana"]
+    skills: []
+    arts: []
+    aptitudes: ["白兵戦適性"]
+    evasion_policy:
+      aggression: 0.8
+      save_dice_threshold: 0
+    description: "鈍重だが装甲を持つ敵。前衛の壁役。"
+
+  - id: "shirayoi_chou"
+    name: "白宵蝶"
+    faction: "enemy"
+    is_boss: false
+    tai: 2
+    rei: 5
+    kou: 4
+    jutsu: 1
+    max_hp: 12
+    max_mp: 4
+    hp: 12
+    mp: 4
+    evasion_dice: 4
+    max_evasion_dice: 4
+    armor_value: 0
+    equipped_weapons: ["ofuda"]
+    skills: []
+    arts: []
+    aptitudes: ["射撃適性"]
+    evasion_policy:
+      aggression: 0.4
+      save_dice_threshold: 2
+    description: "中距離から霊符を撒く軽量敵。"
+
+  - id: "kuro_oni_no_kobun"
+    name: "黒鬼の小分"
+    faction: "enemy"
+    is_boss: false
+    tai: 5
+    rei: 3
+    kou: 4
+    jutsu: 0
+    max_hp: 20
+    max_mp: 0
+    hp: 20
+    mp: 0
+    evasion_dice: 2
+    max_evasion_dice: 2
+    armor_value: 0
+    equipped_weapons: ["mei_dachi"]
+    skills: []
+    arts: []
+    aptitudes: ["白兵戦適性"]
+    evasion_policy:
+      aggression: 0.7
+      save_dice_threshold: 1
+    description: "両手武器を振るう力押しタイプ。"
+
+  - id: "ayakashi_ko"
+    name: "アヤカシの仔"
+    faction: "enemy"
+    is_boss: false
+    tai: 1
+    rei: 2
+    kou: 3
+    jutsu: 0
+    max_hp: 6
+    max_mp: 0
+    hp: 6
+    mp: 0
+    evasion_dice: 2
+    max_evasion_dice: 2
+    armor_value: 0
+    equipped_weapons: ["kogatana"]
+    skills: []
+    arts: []
+    aptitudes: []
+    evasion_policy:
+      aggression: 0.3
+      save_dice_threshold: 0
+    description: "雑魚枠。複数体で戦闘の練習相手になる。"
