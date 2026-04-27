@@ -40,9 +40,7 @@ def _scenario(**overrides: object) -> Scenario:
         events=[
             ScenarioEvent(
                 id="event1",
-                trigger=TriggerEnterZone(
-                    type="enter_zone", zone=((4, 4), (6, 6)), who=["any_pc"]
-                ),
+                trigger=TriggerEnterZone(type="enter_zone", zone=((4, 4), (6, 6)), who=["any_pc"]),
                 actions=[
                     ActionSpawnEnemy(
                         type="spawn_enemy",
@@ -121,9 +119,7 @@ class TestScenarioValidator:
             events=[
                 ScenarioEvent(
                     id="e1",
-                    trigger=TriggerCharacterDies(
-                        type="character_dies", character_id="ghost"
-                    ),
+                    trigger=TriggerCharacterDies(type="character_dies", character_id="ghost"),
                     actions=[],
                 )
             ]

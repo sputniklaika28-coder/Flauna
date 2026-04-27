@@ -85,9 +85,7 @@ class ScenarioValidator:
 
     # -- individual checks -------------------------------------------------
 
-    def _check_duplicate_ids(
-        self, scenario: Scenario, report: ValidationReport
-    ) -> None:
+    def _check_duplicate_ids(self, scenario: Scenario, report: ValidationReport) -> None:
         seen: dict[str, int] = {}
         for character in scenario.characters:
             seen[character.id] = seen.get(character.id, 0) + 1
@@ -114,9 +112,7 @@ class ScenarioValidator:
                     )
                 )
 
-    def _check_characters(
-        self, scenario: Scenario, report: ValidationReport
-    ) -> None:
+    def _check_characters(self, scenario: Scenario, report: ValidationReport) -> None:
         for character in scenario.characters:
             location = f"characters[{character.id}]"
             if character.template and character.template not in self._enemy_templates:
@@ -132,16 +128,13 @@ class ScenarioValidator:
                     ValidationIssue(
                         code="OUT_OF_BOUNDS",
                         message=(
-                            f"position {character.position} is outside the "
-                            f"map {scenario.map_size}"
+                            f"position {character.position} is outside the map {scenario.map_size}"
                         ),
                         location=location,
                     )
                 )
 
-    def _check_obstacles(
-        self, scenario: Scenario, report: ValidationReport
-    ) -> None:
+    def _check_obstacles(self, scenario: Scenario, report: ValidationReport) -> None:
         for index, obstacle in enumerate(scenario.obstacles):
             if not _coord_in_bounds(obstacle, scenario.map_size):
                 report.issues.append(

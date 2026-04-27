@@ -97,9 +97,7 @@ def validate_movement_path(
     if not path:
         raise PathValidationError("path must contain at least one step")
     if len(path) > max_distance:
-        raise PathValidationError(
-            f"path length {len(path)} exceeds max_distance {max_distance}"
-        )
+        raise PathValidationError(f"path length {len(path)} exceeds max_distance {max_distance}")
 
     obstacle_set = set(obstacles)
     occupied_set = set(occupied)

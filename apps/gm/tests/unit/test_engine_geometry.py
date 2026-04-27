@@ -22,9 +22,7 @@ class TestDistance:
             ((1, 1), (-2, 5), 4),
         ],
     )
-    def test_chebyshev(
-        self, p1: tuple[int, int], p2: tuple[int, int], expected: int
-    ) -> None:
+    def test_chebyshev(self, p1: tuple[int, int], p2: tuple[int, int], expected: int) -> None:
         assert calc_distance(p1, p2) == expected
 
 

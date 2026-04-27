@@ -16,19 +16,11 @@ class TestSkillRequirements:
         assert get_requirement("does_not_exist") is None
 
     def test_meets_requirement_passes(self) -> None:
-        assert character_meets_requirement(
-            "踏み込み", aptitudes={"白兵戦適性"}, jutsu=0
-        )
+        assert character_meets_requirement("踏み込み", aptitudes={"白兵戦適性"}, jutsu=0)
 
     def test_missing_aptitude_fails(self) -> None:
-        assert not character_meets_requirement(
-            "踏み込み", aptitudes=set(), jutsu=0
-        )
+        assert not character_meets_requirement("踏み込み", aptitudes=set(), jutsu=0)
 
     def test_jutsu_minimum(self) -> None:
-        assert not character_meets_requirement(
-            "祓魔の心得", aptitudes=set(), jutsu=0
-        )
-        assert character_meets_requirement(
-            "祓魔の心得", aptitudes=set(), jutsu=2
-        )
+        assert not character_meets_requirement("祓魔の心得", aptitudes=set(), jutsu=0)
+        assert character_meets_requirement("祓魔の心得", aptitudes=set(), jutsu=2)

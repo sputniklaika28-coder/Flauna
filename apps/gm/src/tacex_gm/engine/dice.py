@@ -24,9 +24,7 @@ class DiceResult:
 class DiceEngine(Protocol):
     async def roll_pool(self, count: int, threshold: int) -> DiceResult: ...
 
-    async def roll_sum(
-        self, count: int, sides: int = 6, modifier: int = 0
-    ) -> DiceResult: ...
+    async def roll_sum(self, count: int, sides: int = 6, modifier: int = 0) -> DiceResult: ...
 
 
 class PythonDiceEngine:
@@ -50,9 +48,7 @@ class PythonDiceEngine:
             success=successes >= 1,
         )
 
-    async def roll_sum(
-        self, count: int, sides: int = 6, modifier: int = 0
-    ) -> DiceResult:
+    async def roll_sum(self, count: int, sides: int = 6, modifier: int = 0) -> DiceResult:
         if count < 0:
             raise ValueError("count must be >= 0")
         if sides < 2:
