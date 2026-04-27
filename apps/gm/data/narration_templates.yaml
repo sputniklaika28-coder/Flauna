@@ -1,0 +1,68 @@
+# ナラティブテンプレート (GM spec §11-3)
+# 起動時にバリデーション (Phase 0 完了条件 §15-2)。
+# テンプレートは Jinja2 形式。利用可能な変数は category ごとに固定。
+templates:
+  attack_hit_melee:
+    description: "近接攻撃が命中したときの最低限テンプレ。"
+    variables:
+      - "actor"
+      - "target"
+      - "weapon"
+      - "damage"
+    template: |
+      {{ actor.name }}は{{ weapon.name }}で{{ target.name }}を斬りつけ、{{ damage }}の損傷を与えた。
+
+  attack_miss:
+    description: "命中判定で全失敗、または回避成功。"
+    variables:
+      - "actor"
+      - "target"
+      - "weapon"
+    template: |
+      {{ actor.name }}の攻撃は{{ target.name }}に届かず、空を切った。
+
+  attack_hit_ranged:
+    description: "射撃命中。"
+    variables:
+      - "actor"
+      - "target"
+      - "weapon"
+      - "damage"
+    template: |
+      {{ actor.name }}が放った{{ weapon.name }}は{{ target.name }}を捉え、{{ damage }}の損傷を与えた。
+
+  evasion_required:
+    description: "回避要請の自動描写。"
+    variables:
+      - "target"
+      - "incoming"
+    template: |
+      {{ target.name }}に複数の攻撃が迫る。回避を選択せよ。
+
+  character_dies:
+    description: "HP0 で死亡確定。"
+    variables:
+      - "character"
+    template: |
+      {{ character.name }}は力尽き、その場に崩れ落ちた。
+
+  npc_default_action:
+    description: "AI が失敗してデフォルト行動にフォールバックしたとき。"
+    variables:
+      - "actor"
+    template: |
+      {{ actor.name }}は迷うように身構え、最も近い敵へ向かう。
+
+  turn_skipped:
+    description: "Skip 行動。"
+    variables:
+      - "actor"
+    template: |
+      {{ actor.name }}は息を整え、機を伺った。
+
+  combat_start:
+    description: "戦闘フェイズ開始の合図。"
+    variables:
+      - "scenario"
+    template: |
+      『{{ scenario.title }}』 — 戦闘開始。

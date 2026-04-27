@@ -1,0 +1,37 @@
+# GM spec §14-1 例。Phase 2 MVP の動作確認に使う。
+scenario_id: "first_mission"
+title: "最初の任務"
+map_size: [20, 20]
+respawn_point: [10, 10]
+obstacles:
+  - [3, 5]
+  - [4, 5]
+  - [5, 5]
+  - [12, 8]
+  - [12, 9]
+characters:
+  - id: "enemy1"
+    name: "鬱黒揚羽"
+    faction: "enemy"
+    template: "ukkoku_ageha"
+    position: [15, 10]
+events:
+  - id: "event_zone_entry"
+    trigger:
+      type: "enter_zone"
+      zone:
+        - [10, 10]
+        - [15, 15]
+      who: ["any_pc"]
+    actions:
+      - type: "spawn_enemy"
+        template: "ayakashi_ko"
+        count: 2
+        positions:
+          - [12, 12]
+          - [13, 12]
+    once: true
+victory_conditions:
+  - type: "all_enemies_defeated"
+failure_conditions:
+  - type: "all_pcs_defeated"

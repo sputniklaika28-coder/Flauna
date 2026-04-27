@@ -1,0 +1,66 @@
+# 祭具データ (GM spec §14-2)
+# Phase 1: MVP に必要な初期作成可能祭具を網羅。
+weapons:
+  - id: "kogatana"
+    name: "小刀"
+    category: "melee"
+    base_dice: 4
+    damage:
+      base_formula:
+        raw: "1d6+1"
+      damage_type: "physical"
+    tags: ["melee", "starter"]
+    description: "扱いやすい近接祭具。新人祓魔師の標準装備。"
+
+  - id: "ofuda"
+    name: "御札"
+    category: "ranged"
+    range_class: "small_ranged"
+    base_dice: 3
+    damage:
+      base_formula:
+        raw: "1d6"
+      ability_bonus:
+        ability: "霊"
+        condition: "always"
+      damage_type: "spiritual"
+    tags: ["ranged", "small", "starter"]
+    description: "短距離投擲の霊符。霊力に応じてダメージが伸びる。"
+
+  - id: "harae_gushi"
+    name: "祓串"
+    category: "peg"
+    range_class: "peg_ranged"
+    base_dice: 3
+    damage:
+      base_formula:
+        raw: "1d6"
+      damage_type: "spiritual"
+    tags: ["peg", "wire_anchor", "starter"]
+    description: "結界の起点になる祭串。MVPではダメージ判定のみ使用。"
+
+  - id: "mei_dachi"
+    name: "鳴太刀"
+    category: "melee"
+    base_dice: 5
+    damage:
+      base_formula:
+        raw: "2d6"
+      ability_bonus:
+        ability: "体"
+        condition: "always"
+      damage_type: "physical"
+    tags: ["melee", "two_handed"]
+    description: "両手持ちの大型祭具。重いが破壊力が高い。"
+
+  - id: "shukushashin"
+    name: "縮射針"
+    category: "ranged"
+    range_class: "medium_ranged"
+    base_dice: 3
+    damage:
+      base_formula:
+        raw: "1d6+2"
+      damage_type: "physical"
+    tags: ["ranged", "medium"]
+    description: "中距離が得意な小型射撃祭具。"
