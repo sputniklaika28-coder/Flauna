@@ -13,6 +13,7 @@ from .combat import (
     resolve_attack,
     resolve_evasion,
 )
+from .default_actions import DEFAULT_NPC_ACTIONS, select_default_action
 from .dice import DiceEngine, DiceResult, PythonDiceEngine
 from .geometry import (
     PathValidationError,
@@ -23,6 +24,7 @@ from .geometry import (
 )
 
 __all__ = [
+    "DEFAULT_NPC_ACTIONS",
     "CombatResolutionError",
     "DamageBreakdown",
     "DiceEngine",
@@ -41,5 +43,6 @@ __all__ = [
     "ranged_attack_difficulty",
     "resolve_attack",
     "resolve_evasion",
+    "select_default_action",
     "validate_movement_path",
 ]
