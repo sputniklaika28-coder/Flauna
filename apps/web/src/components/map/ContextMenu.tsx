@@ -4,9 +4,10 @@ import { useGameStore, useUIStore } from "../../stores";
 
 interface Props {
   onAttack: (targetId: string) => void;
+  onDetailAttack: (targetId: string) => void;
 }
 
-export default function ContextMenu({ onAttack }: Props) {
+export default function ContextMenu({ onAttack, onDetailAttack }: Props) {
   const { t } = useTranslation();
   const { contextMenuCharId, contextMenuPos, closeContextMenu } = useUIStore();
   const { gameState } = useGameStore();
@@ -45,6 +46,16 @@ export default function ContextMenu({ onAttack }: Props) {
       >
         {t("room.contextMenu.attack")}
       </button>
+      <button
+        className="w-full text-left px-3 py-1.5 hover:bg-gray-700 text-yellow-300"
+        onClick={() => {
+          onDetailAttack(contextMenuCharId);
+          closeContextMenu();
+        }}
+      >
+        {t("room.contextMenu.detailAttack")} ⚙
+      </button>
+      <div className="border-t border-gray-700 my-0.5" />
       <button
         className="w-full text-left px-3 py-1.5 hover:bg-gray-700"
         onClick={closeContextMenu}

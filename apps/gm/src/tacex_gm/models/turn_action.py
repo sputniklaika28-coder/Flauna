@@ -16,9 +16,13 @@ class Movement(BaseModel):
     mode: Literal["normal", "tactical_maneuver", "attack_focus"] = "normal"
 
     @model_validator(mode="after")
-    def _path_not_empty(self) -> Movement:
-        if not self.path:
-            raise ValueError("movement path must not be empty")
+    def _path_valid(self) -> Movement:
+        if self.mode == "attack_focus":
+            if self.path:
+                raise ValueError("attack_focus movement must have an empty path")
+        else:
+            if not self.path:
+                raise ValueError("movement path must not be empty")
         return self
 
 

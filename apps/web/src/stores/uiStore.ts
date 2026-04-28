@@ -19,6 +19,8 @@ interface UIStore {
   activeModal: ActiveModal;
   damageEvents: DamageEvent[];
   combatResult: CombatResult;
+  /** Target char ID for the ActionDetailModal (opened via "詳細攻撃"). */
+  actionDetailTargetId: string | null;
 
   setMapZoom: (zoom: number) => void;
   setSelectedChar: (id: string | null) => void;
@@ -26,6 +28,7 @@ interface UIStore {
   closeContextMenu: () => void;
   openModal: (modal: ActiveModal) => void;
   closeModal: () => void;
+  openActionDetail: (targetId: string) => void;
   addDamageEvent: (event: DamageEvent) => void;
   removeDamageEvent: (id: string) => void;
   setCombatResult: (result: CombatResult) => void;
@@ -39,6 +42,7 @@ export const useUIStore = create<UIStore>()((set) => ({
   activeModal: null,
   damageEvents: [],
   combatResult: null,
+  actionDetailTargetId: null,
 
   setMapZoom: (zoom) => set({ mapZoom: Math.min(64, Math.max(30, zoom)) }),
   setSelectedChar: (id) => set({ selectedCharId: id }),
@@ -48,6 +52,8 @@ export const useUIStore = create<UIStore>()((set) => ({
     set({ contextMenuCharId: null, contextMenuPos: null }),
   openModal: (modal) => set({ activeModal: modal }),
   closeModal: () => set({ activeModal: null }),
+  openActionDetail: (targetId) =>
+    set({ actionDetailTargetId: targetId, activeModal: "action_detail" }),
   addDamageEvent: (event) =>
     set((s) => ({ damageEvents: [...s.damageEvents, event] })),
   removeDamageEvent: (id) =>
