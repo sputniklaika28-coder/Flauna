@@ -38,6 +38,11 @@ const en = {
   "room.ai.fallback": "AI fallback: {{reason}}",
   "room.contextMenu.attack": "Attack",
   "room.contextMenu.detail": "View Details",
+  "combat.victory": "Victory!",
+  "combat.defeat": "Defeat...",
+  "combat.victoryMsg": "All enemies defeated. Mission complete.",
+  "combat.defeatMsg": "Party wiped... We must retreat.",
+  "combat.backToLobby": "Back to Lobby",
 } as const;
 
 export default en;

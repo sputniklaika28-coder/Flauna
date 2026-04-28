@@ -1,6 +1,7 @@
 import { Stage, Layer, Rect, Line, Circle, Text, Group } from "react-konva";
 import { useGameStore, useUIStore } from "../../stores";
 import type { Character } from "../../types";
+import DamagePopups from "./DamagePopup";
 
 const FACTION_COLORS: Record<string, string> = {
   pc: "#3b82f6",
@@ -174,6 +175,9 @@ export default function GameMap({ onCharRightClick }: Props) {
               onContextMenu={(pos) => onCharRightClick(char.id, pos)}
             />
           ))}
+
+          {/* damage popups */}
+          <DamagePopups cellSize={cellSize} />
         </Layer>
       </Stage>
     </div>
