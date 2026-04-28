@@ -91,9 +91,14 @@
           "title": "Pending Id",
           "type": "string"
         },
-        "use_katashiro": {
-          "title": "Use Katashiro",
-          "type": "boolean"
+        "choice": {
+          "enum": [
+            "avoid_death",
+            "respawn",
+            "accept_death"
+          ],
+          "title": "Choice",
+          "type": "string"
         }
       },
       "required": [
@@ -102,7 +107,7 @@
         "room_id",
         "client_request_id",
         "pending_id",
-        "use_katashiro"
+        "choice"
       ],
       "title": "SubmitDeathAvoidance",
       "type": "object"

@@ -41,7 +41,7 @@ class SubmitDeathAvoidance(BaseModel):
     room_id: str
     client_request_id: str
     pending_id: str
-    use_katashiro: bool
+    choice: Literal["avoid_death", "respawn", "accept_death"]
 
 
 class PlayerStatement(BaseModel):
@@ -121,6 +121,20 @@ class EvadeRequired(BaseModel):
     deadline_seconds: int
 
 
+class DeathAvoidanceRequired(BaseModel):
+    type: Literal["death_avoidance_required"]
+    event_id: int
+    timestamp: str
+    pending_id: str
+    target_character_id: str
+    target_player_id: str
+    incoming_damage: int
+    damage_type: str
+    katashiro_required: int
+    katashiro_remaining: int
+    deadline_seconds: int
+
+
 class AiFallbackNotice(BaseModel):
     type: Literal["ai_fallback_notice"]
     event_id: int
@@ -153,6 +167,7 @@ ServerMessage = Annotated[
     | GameEventMessage
     | AiThinking
     | EvadeRequired
+    | DeathAvoidanceRequired
     | AiFallbackNotice
     | SessionLost
     | ErrorMessage,

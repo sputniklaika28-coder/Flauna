@@ -58,7 +58,7 @@ class EvasionRequest(BaseModel):
 
 
 class DeathAvoidanceRequest(BaseModel):
-    """Phase 4 以降。型だけは Phase 1 で固めておく."""
+    """Phase 4 以降。形代システムによる死亡回避要求 (§10-2)."""
 
     pending_id: str
     target_character_id: str
@@ -69,3 +69,29 @@ class DeathAvoidanceRequest(BaseModel):
     katashiro_remaining: int = Field(ge=0)
     created_at: datetime = Field(default_factory=_now)
     deadline_at: datetime
+
+    @classmethod
+    def with_default_deadline(
+        cls,
+        *,
+        pending_id: str,
+        target_character_id: str,
+        target_player_id: str,
+        incoming_damage: int,
+        damage_type: DamageType,
+        katashiro_required: int,
+        katashiro_remaining: int,
+        timeout_seconds: int = 60,
+    ) -> DeathAvoidanceRequest:
+        created = _now()
+        return cls(
+            pending_id=pending_id,
+            target_character_id=target_character_id,
+            target_player_id=target_player_id,
+            incoming_damage=incoming_damage,
+            damage_type=damage_type,
+            katashiro_required=katashiro_required,
+            katashiro_remaining=katashiro_remaining,
+            created_at=created,
+            deadline_at=created + timedelta(seconds=timeout_seconds),
+        )

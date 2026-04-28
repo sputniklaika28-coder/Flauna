@@ -58,6 +58,70 @@
       "title": "AiThinking",
       "type": "object"
     },
+    "DeathAvoidanceRequired": {
+      "properties": {
+        "type": {
+          "const": "death_avoidance_required",
+          "title": "Type",
+          "type": "string"
+        },
+        "event_id": {
+          "title": "Event Id",
+          "type": "integer"
+        },
+        "timestamp": {
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "pending_id": {
+          "title": "Pending Id",
+          "type": "string"
+        },
+        "target_character_id": {
+          "title": "Target Character Id",
+          "type": "string"
+        },
+        "target_player_id": {
+          "title": "Target Player Id",
+          "type": "string"
+        },
+        "incoming_damage": {
+          "title": "Incoming Damage",
+          "type": "integer"
+        },
+        "damage_type": {
+          "title": "Damage Type",
+          "type": "string"
+        },
+        "katashiro_required": {
+          "title": "Katashiro Required",
+          "type": "integer"
+        },
+        "katashiro_remaining": {
+          "title": "Katashiro Remaining",
+          "type": "integer"
+        },
+        "deadline_seconds": {
+          "title": "Deadline Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "event_id",
+        "timestamp",
+        "pending_id",
+        "target_character_id",
+        "target_player_id",
+        "incoming_damage",
+        "damage_type",
+        "katashiro_required",
+        "katashiro_remaining",
+        "deadline_seconds"
+      ],
+      "title": "DeathAvoidanceRequired",
+      "type": "object"
+    },
     "ErrorMessage": {
       "properties": {
         "type": {
@@ -385,6 +449,7 @@
     "mapping": {
       "ai_fallback_notice": "#/$defs/AiFallbackNotice",
       "ai_thinking": "#/$defs/AiThinking",
+      "death_avoidance_required": "#/$defs/DeathAvoidanceRequired",
       "error": "#/$defs/ErrorMessage",
       "evade_required": "#/$defs/EvadeRequired",
       "event": "#/$defs/GameEventMessage",
@@ -417,6 +482,9 @@
     },
     {
       "$ref": "#/$defs/EvadeRequired"
+    },
+    {
+      "$ref": "#/$defs/DeathAvoidanceRequired"
     },
     {
       "$ref": "#/$defs/AiFallbackNotice"

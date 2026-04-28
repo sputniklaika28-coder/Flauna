@@ -95,7 +95,7 @@ class TestSubmitEvasion:
 
 
 class TestSubmitDeathAvoidance:
-    def test_use_katashiro_true(self):
+    def test_avoid_death_choice(self):
         msg = client_adapter.validate_python(
             {
                 "action": "submit_death_avoidance",
@@ -103,13 +103,13 @@ class TestSubmitDeathAvoidance:
                 "room_id": "r",
                 "client_request_id": "req",
                 "pending_id": "pend-1",
-                "use_katashiro": True,
+                "choice": "avoid_death",
             }
         )
         assert isinstance(msg, SubmitDeathAvoidance)
-        assert msg.use_katashiro is True
+        assert msg.choice == "avoid_death"
 
-    def test_use_katashiro_false(self):
+    def test_respawn_choice(self):
         msg = client_adapter.validate_python(
             {
                 "action": "submit_death_avoidance",
@@ -117,10 +117,25 @@ class TestSubmitDeathAvoidance:
                 "room_id": "r",
                 "client_request_id": "req",
                 "pending_id": "pend-2",
-                "use_katashiro": False,
+                "choice": "respawn",
             }
         )
-        assert msg.use_katashiro is False  # type: ignore[union-attr]
+        assert isinstance(msg, SubmitDeathAvoidance)
+        assert msg.choice == "respawn"  # type: ignore[union-attr]
+
+    def test_accept_death_choice(self):
+        msg = client_adapter.validate_python(
+            {
+                "action": "submit_death_avoidance",
+                "player_id": "p1",
+                "room_id": "r",
+                "client_request_id": "req",
+                "pending_id": "pend-3",
+                "choice": "accept_death",
+            }
+        )
+        assert isinstance(msg, SubmitDeathAvoidance)
+        assert msg.choice == "accept_death"  # type: ignore[union-attr]
 
 
 class TestPlayerStatement:

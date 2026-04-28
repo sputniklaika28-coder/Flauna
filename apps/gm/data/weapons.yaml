@@ -64,3 +64,61 @@ weapons:
       damage_type: "physical"
     tags: ["ranged", "medium"]
     description: "中距離が得意な小型射撃祭具。"
+
+  - id: "taiyumi"
+    name: "大弓"
+    category: "ranged"
+    range_class: "large_ranged"
+    base_dice: 4
+    damage:
+      base_formula:
+        raw: "2d6"
+      ability_bonus:
+        ability: "体"
+        condition: "always"
+      damage_type: "physical"
+    tags: ["ranged", "large", "two_handed"]
+    description: "長距離を得意とする大型弓型祭具。両手が必要だが射程が長い。"
+
+  - id: "ryoto_tanto"
+    name: "両刃短刀"
+    category: "melee"
+    base_dice: 3
+    damage:
+      base_formula:
+        raw: "1d6"
+      ability_bonus:
+        ability: "巧"
+        condition: "always"
+      damage_type: "physical"
+    tags: ["melee", "dual_wield", "light"]
+    description: "両手利きに対応した小型刃物。巧みさに応じてダメージが伸びる。"
+
+  - id: "reiki_lance"
+    name: "霊気槍"
+    category: "melee"
+    base_dice: 5
+    damage:
+      base_formula:
+        raw: "1d6+2"
+      ability_bonus:
+        ability: "霊"
+        condition: "always"
+      damage_type: "spiritual"
+    tags: ["melee", "reach", "spiritual"]
+    description: "霊力を槍状に収束させる長柄祭具。リーチが長い。"
+
+  - id: "kirifuda"
+    name: "切り札"
+    category: "ranged"
+    range_class: "peg_ranged"
+    base_dice: 4
+    damage:
+      base_formula:
+        raw: "1d6+1"
+      ability_bonus:
+        ability: "巧"
+        condition: "always"
+      damage_type: "spiritual"
+    tags: ["peg", "wire_anchor", "spiritual"]
+    description: "鋭く放つ霊符系の射撃祭具。巧みさに応じて効果が増す。"
