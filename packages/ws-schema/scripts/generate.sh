@@ -17,7 +17,7 @@ node --input-type=module <<'JSEOF'
 import { compileFromFile } from 'json-schema-to-typescript';
 import { writeFileSync } from 'fs';
 
-const header = '// AUTO-GENERATED — do not edit manually. Run: bash packages/ws-schema/scripts/generate.sh\n\n';
+const header = '// AUTO-GENERATED — do not edit manually. Run: bash packages/ws-schema/scripts/generate.sh\n// @ts-nocheck — merged schemas produce duplicate type identifiers\n\n';
 const [client, server] = await Promise.all([
   compileFromFile('./schemas/client_message.json', { additionalProperties: false }),
   compileFromFile('./schemas/server_message.json', { additionalProperties: false }),
