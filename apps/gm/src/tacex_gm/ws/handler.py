@@ -57,7 +57,7 @@ from tacex_gm.ws.messages import (
     GmNarrative,
     JoinRoom,
     SessionRestore,
-    StateUpdate,
+    StateFull,
     SubmitEvasion,
     SubmitTurnAction,
 )
@@ -689,12 +689,12 @@ async def _emit_event(
 
 
 async def _send_state_update(websocket: WebSocket, state: GameState) -> None:
-    msg = StateUpdate(
-        type="state_update",
+    msg = StateFull(
+        type="state_full",
         event_id=state.next_event_id,
         timestamp=_now(),
         version=state.version,
-        patch=[],  # full state on each update for Phase 2 simplicity
+        state=state.model_dump(mode="json"),
     )
     await _send_ws(websocket, msg)
 

@@ -1,8 +1,8 @@
 """Phase 0 completion condition #5: happy-path end-to-end combat test.
 
 Covers: room create → WS join → PC turn (melee attack) → NPC auto-evasion
-→ state_update → NPC turn (default_action) → evade_required → submit_evasion
-→ narrative → state_update.
+→ state_full → NPC turn (default_action) → evade_required → submit_evasion
+→ narrative → state_full.
 
 All LLM calls use MockLLMBackend so no network traffic is required.
 Dice use the seed embedded in GameState for deterministic results.
@@ -133,13 +133,13 @@ class TestPCMeleeAttackTurn:
                 )
             )
 
-            # Receive state_update, event(turn_ended), gm_narrative, state_update,
+            # Receive state_full, event(turn_ended), gm_narrative, state_full,
             # then NPC turn: ai_thinking, ai_fallback_notice, then either
             # evade_required (if hit) or another narrative (if skip/miss).
             # Stop at ai_thinking to avoid blocking on evade_required or next recv.
             msgs = _collect_until(ws, stop_types={"ai_thinking"}, max_msgs=10)
             types = [m["type"] for m in msgs]
-            assert "state_update" in types
+            assert "state_full" in types
             assert "gm_narrative" in types
             assert "ai_thinking" in types, f"Got types: {types}"
 
@@ -181,8 +181,8 @@ class TestPCMeleeAttackTurn:
         assert err["type"] == "error"
         assert err["code"] == "VERSION_MISMATCH"
 
-    def test_pc_melee_attack_produces_state_update_and_narrative(self, sync_client, room_data):
-        """PC adjacent to NPC: attack → NPC auto-evades → state_update + narrative."""
+    def test_pc_melee_attack_produces_state_full_and_narrative(self, sync_client, room_data):
+        """PC adjacent to NPC: attack → NPC auto-evades → state_full + narrative."""
         room_id = room_data["room_id"]
         player_id = room_data["player_id"]
         token = room_data["player_token"]
@@ -220,7 +220,7 @@ class TestPCMeleeAttackTurn:
             msgs = _collect_until(ws, stop_types={"ai_thinking", "combat_ended"}, max_msgs=15)
             types = [m["type"] for m in msgs]
 
-        assert "state_update" in types, f"Expected state_update in {types}"
+        assert "state_full" in types, f"Expected state_full in {types}"
         assert "gm_narrative" in types, f"Expected gm_narrative in {types}"
 
 
@@ -295,7 +295,7 @@ class TestNPCAttackEvasionLoop:
             if pending_id is None:
                 # NPC missed or skipped — still a valid flow, check basics.
                 types = [m["type"] for m in msgs_before]
-                assert "state_update" in types
+                assert "state_full" in types
                 assert "gm_narrative" in types
                 return
 
@@ -319,7 +319,7 @@ class TestNPCAttackEvasionLoop:
             )
             all_types = [m["type"] for m in msgs_before + msgs_after]
 
-        assert "state_update" in all_types
+        assert "state_full" in all_types
         assert "gm_narrative" in all_types
 
 

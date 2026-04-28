@@ -13,7 +13,7 @@ import { Header, SideMenu } from "../components/layout";
 import { ChatPanel } from "../components/chat";
 import { GameMap, ContextMenu } from "../components/map";
 import { QuickActionBar } from "../components/action";
-import { EvasionDialog } from "../components/dialogs";
+import { EvasionDialog, CombatResultModal } from "../components/dialogs";
 import type { GameState, EvasionPending } from "../types";
 import type { ServerMessage } from "@flauna/ws-schema";
 
@@ -31,8 +31,11 @@ export default function Room() {
     lastSeenEventId,
   } = useGameStore();
   const { addEntry, updateLastNarrative } = useChatStore();
-  const { openContextMenu } = useUIStore();
+  const { openContextMenu, addDamageEvent, setCombatResult } = useUIStore();
   const { setEvasionRequest } = usePendingStore();
+
+  // Track previous HP values to detect damage for popups
+  const prevHpRef = useRef<Record<string, number>>({});
 
   const wsRef = useRef<TacexWebSocket | null>(null);
 
@@ -46,21 +49,44 @@ export default function Room() {
       }
 
       switch (msg.type) {
-        case "session_restore":
-        case "state_full": {
-          const state = (
-            msg.type === "session_restore" ? msg.current_state : msg.state
-          ) as unknown as GameState;
+        case "session_restore": {
+          const state = msg.current_state as unknown as GameState;
           applyStateFull(state);
           setConnectionStatus("ACTIVE");
-          addEntry(
-            "system",
-            msg.type === "session_restore" ? "セッション復元" : "ゲーム状態同期",
-          );
+          addEntry("system", "セッション復元");
+          // Seed initial HP tracking
+          const hpMap: Record<string, number> = {};
+          state.characters.forEach((c) => { hpMap[c.id] = c.hp; });
+          prevHpRef.current = hpMap;
+          break;
+        }
+        case "state_full": {
+          const state = msg.state as unknown as GameState;
+
+          // Detect HP decreases → emit damage popups
+          state.characters.forEach((char) => {
+            const prevHp = prevHpRef.current[char.id];
+            if (prevHp !== undefined && char.hp < prevHp) {
+              addDamageEvent({
+                id: nanoid(),
+                charId: char.id,
+                amount: prevHp - char.hp,
+                gridX: char.position[0],
+                gridY: char.position[1],
+              });
+            }
+          });
+          // Update HP map
+          const hpMap: Record<string, number> = {};
+          state.characters.forEach((c) => { hpMap[c.id] = c.hp; });
+          prevHpRef.current = hpMap;
+
+          applyStateFull(state);
+          setConnectionStatus("ACTIVE");
           break;
         }
         case "state_update": {
-          // Patch は現時点では全体同期で対応 (Phase 1スコープ)
+          // Phase 3+: incremental JSON patch — ignored until then
           break;
         }
         case "gm_narrative": {
@@ -68,7 +94,15 @@ export default function Room() {
           break;
         }
         case "event": {
-          addEntry("system", `[${msg.event_name}]`);
+          if (msg.event_name === "combat_ended") {
+            const outcome = (msg.payload as { outcome?: string }).outcome;
+            if (outcome === "victory" || outcome === "defeat") {
+              setCombatResult(outcome);
+              addEntry("system", outcome === "victory" ? "戦闘終了: 勝利！" : "戦闘終了: 敗北…");
+            }
+          } else {
+            addEntry("system", `[${msg.event_name}]`);
+          }
           break;
         }
         case "ai_thinking": {
@@ -107,6 +141,8 @@ export default function Room() {
       updateLastNarrative,
       setEvasionRequest,
       setLastSeenEventId,
+      addDamageEvent,
+      setCombatResult,
     ],
   );
 
@@ -115,7 +151,6 @@ export default function Room() {
 
     (async () => {
       try {
-        // Join room to get player token
         const joinResp = await joinRoom(roomId, { player_name: "プレイヤー" });
         setAuth(joinResp.player_id, joinResp.player_token);
 
@@ -211,7 +246,13 @@ export default function Room() {
         client_request_id: nanoid(),
         expected_version: gameState.version,
         turn_action: {
-          attack: { target_id: targetId, weapon_id: weaponId, style: "none" },
+          main_action: {
+            type: "melee_attack",
+            weapon_id: weaponId,
+            targets: [targetId],
+            style: "none",
+            dice_distribution: [],
+          },
         },
       });
     },
@@ -242,6 +283,7 @@ export default function Room() {
 
       <ContextMenu onAttack={handleAttack} />
       <EvasionDialog onSubmit={handleSubmitEvasion} />
+      <CombatResultModal onBackToLobby={() => navigate("/")} />
     </div>
   );
 }

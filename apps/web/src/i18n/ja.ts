@@ -38,6 +38,11 @@ const ja = {
   "room.ai.fallback": "AIフォールバック: {{reason}}",
   "room.contextMenu.attack": "攻撃する",
   "room.contextMenu.detail": "詳細を表示",
+  "combat.victory": "勝利！",
+  "combat.defeat": "敗北…",
+  "combat.victoryMsg": "全ての敵を倒した。任務完了だ。",
+  "combat.defeatMsg": "全滅……。今回は退くしかない。",
+  "combat.backToLobby": "ロビーへ戻る",
 } as const;
 
 export default ja;
