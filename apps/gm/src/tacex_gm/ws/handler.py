@@ -1,4 +1,10 @@
-"""WebSocket handler — Phase 2 MVP combat loop (GM spec §7-6, §8, §10-1).
+"""WebSocket handler — Phase 3 combat loop (GM spec §7-6, §8, §10-1).
+
+Phase 3 additions:
+  - 攻撃集中 (attack_focus): no first move, attack difficulty −1
+  - 戦術機動 (tactical_maneuver): 巧 NORMAL check, double mobility, action difficulty +1
+  - 連撃 (RENGEKI): even dice distribution validation
+  - Evasion dice tracking: consumed on use, restored at turn start
 
 Flow per turn:
   PC turn  → wait for submit_turn_action → resolve attack (NPC auto-evades)
@@ -42,6 +48,7 @@ from tacex_gm.models import (
     RangedAttack,
     TurnAction,
 )
+from tacex_gm.models.constants import DIFFICULTY_NORMAL, MeleeStyle
 from tacex_gm.models.event import TurnSummary
 from tacex_gm.models.pending import EvasionRequest, IncomingAttack
 from tacex_gm.models.turn_action import PegAttack
@@ -274,16 +281,45 @@ async def _run_pc_turn(
         state = state.model_copy(update={"machine_state": MachineState.RESOLVING_ACTION})
         session.state = state
 
-        # Apply first_move.
+        # Restore actor's evasion dice at start of their turn (§19 rule).
+        actor = _restore_evasion_dice(actor)
+        state = _replace_character(state, actor)
+        session.state = state
+
+        # Determine style_modifier from first_move.mode (Phase 3 §19 rules).
+        style_modifier = 0
+        narrative_parts_pre: list[str] = []
+
         if turn_action.first_move is not None:
-            state = _apply_movement(state, actor.id, turn_action.first_move)
-            session.state = state
-            actor = state.find_character(actor.id)
-            assert actor is not None
+            if turn_action.first_move.mode == "attack_focus":
+                # No actual movement; attack difficulty −1.
+                style_modifier = -1
+                narrative_parts_pre.append(f"{actor.name}は攻撃に集中した！（難易度-1）")
+            elif turn_action.first_move.mode == "tactical_maneuver":
+                # Roll 巧 at NORMAL; double mobility on success; action difficulty +1.
+                kou_roll = await dice.roll_pool(count=actor.kou, threshold=DIFFICULTY_NORMAL)
+                if kou_roll.successes >= 1:
+                    narrative_parts_pre.append(
+                        f"{actor.name}は戦術機動に成功！（機動力2倍、難易度+1）"
+                    )
+                else:
+                    narrative_parts_pre.append(
+                        f"{actor.name}は戦術機動を試みたが失敗。（難易度+1）"
+                    )
+                style_modifier = 1
+                state = _apply_movement(state, actor.id, turn_action.first_move)
+                session.state = state
+                actor = state.find_character(actor.id)
+                assert actor is not None
+            else:
+                state = _apply_movement(state, actor.id, turn_action.first_move)
+                session.state = state
+                actor = state.find_character(actor.id)
+                assert actor is not None
 
         # Resolve main_action (attack).
         summary = TurnSummary(actor_id=actor.id)
-        narrative_parts: list[str] = []
+        narrative_parts: list[str] = [*narrative_parts_pre]
 
         if isinstance(turn_action.main_action, (MeleeAttack, RangedAttack, PegAttack)):
             attack = turn_action.main_action
@@ -304,6 +340,28 @@ async def _run_pc_turn(
                 return
             targets_valid: list[Character] = [t for t in targets if t is not None]
 
+            # Validate 連撃 even distribution (Phase 3).
+            if (
+                isinstance(attack, MeleeAttack)
+                and attack.style == MeleeStyle.RENGEKI
+                and len(attack.dice_distribution) > 1
+            ):
+                total_dice = sum(attack.dice_distribution)
+                if total_dice > 0:
+                    expected = total_dice // len(attack.dice_distribution)
+                    remainder = total_dice % len(attack.dice_distribution)
+                    for i, d in enumerate(attack.dice_distribution):
+                        expected_i = expected + (1 if i < remainder else 0)
+                        if d != expected_i:
+                            await _send_error(
+                                websocket,
+                                ErrorCode.INVALID_ACTION_SEQUENCE,
+                                "連撃: dice must be distributed evenly across targets",
+                            )
+                            state = state.model_copy(update={"machine_state": MachineState.IDLE})
+                            session.state = state
+                            return
+
             hit_outcomes = await resolve_attack(
                 attacker=actor,
                 weapon=weapon,
@@ -311,6 +369,7 @@ async def _run_pc_turn(
                 dice_distribution=attack.dice_distribution,
                 dice_engine=dice,
                 obstacles=state.obstacles,
+                style_modifier=style_modifier,
             )
 
             # For each NPC target that was hit: auto-evasion, then damage.
@@ -323,7 +382,7 @@ async def _run_pc_turn(
                     narrative_parts.append(f"{actor.name}の攻撃は{target.name}に当たらなかった。")
                     continue
 
-                # NPC auto-evade.
+                # NPC auto-evade — consume evasion dice (Phase 3).
                 npc_dice = npc_decide_evasion_dice(target, hits)
                 evasion_outcome = await resolve_evasion(
                     pending_id=str(uuid.uuid4()),
@@ -331,6 +390,9 @@ async def _run_pc_turn(
                     dice_used=npc_dice,
                     dice_engine=dice,
                 )
+                target = _consume_evasion_dice(target, npc_dice)
+                state = _replace_character(state, target)
+                session.state = state
 
                 if evasion_outcome.succeeded:
                     narrative_parts.append(f"{target.name}は{actor.name}の攻撃を回避した！")
@@ -357,6 +419,7 @@ async def _run_pc_turn(
                         await _emit_event(
                             websocket, state, "character_died", {"character_id": target.id}
                         )
+                    target = new_target
 
         # Apply second_move.
         if turn_action.second_move is not None:
@@ -408,6 +471,11 @@ async def _run_npc_turn(
             return
 
         state = state.model_copy(update={"machine_state": MachineState.RESOLVING_ACTION})
+        session.state = state
+
+        # Restore NPC's evasion dice at start of their turn (Phase 3 §19 rule).
+        actor = _restore_evasion_dice(actor)
+        state = _replace_character(state, actor)
         session.state = state
 
         # Signal AI thinking (using default action selector).
@@ -576,6 +644,11 @@ async def _run_npc_turn(
             dice_engine=dice,
         )
 
+        # Consume player evasion dice (Phase 3).
+        evade_target = _consume_evasion_dice(evade_target, dice_used)
+        state = _replace_character(state, evade_target)
+        session.state = state
+
         if evasion_outcome.succeeded:
             narrative_parts.append(f"{evade_target.name}は{actor_char.name}の攻撃を回避した！")
         else:
@@ -599,9 +672,6 @@ async def _run_npc_turn(
                         websocket, state, "character_died", {"character_id": evade_target.id}
                     )
                 evade_target = new_target
-
-        # Consume evasion dice (simplified: reset to max after each turn).
-        # Full evasion-dice-per-round tracking is Phase 3+.
 
         state = state.model_copy(
             update={
@@ -648,6 +718,21 @@ def _apply_movement(state: GameState, char_id: str, movement: Movement) -> GameS
         return state
     new_char = char.model_copy(update={"position": new_pos})
     return _replace_character(state, new_char)
+
+
+def _restore_evasion_dice(char: Character) -> Character:
+    """Reset evasion_dice to max at the start of the character's turn (§19 rule)."""
+    if char.evasion_dice == char.max_evasion_dice:
+        return char
+    return char.model_copy(update={"evasion_dice": char.max_evasion_dice})
+
+
+def _consume_evasion_dice(char: Character, dice_used: int) -> Character:
+    """Subtract used evasion dice from the character's current pool."""
+    if dice_used <= 0:
+        return char
+    new_dice = max(0, char.evasion_dice - dice_used)
+    return char.model_copy(update={"evasion_dice": new_dice})
 
 
 def _replace_character(state: GameState, updated: Character) -> GameState:

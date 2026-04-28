@@ -12,7 +12,7 @@ import {
 import { Header, SideMenu } from "../components/layout";
 import { ChatPanel } from "../components/chat";
 import { GameMap, ContextMenu } from "../components/map";
-import { QuickActionBar } from "../components/action";
+import { QuickActionBar, ActionDetailModal } from "../components/action";
 import { EvasionDialog, CombatResultModal } from "../components/dialogs";
 import type { GameState, EvasionPending } from "../types";
 import type { ServerMessage } from "@flauna/ws-schema";
@@ -31,7 +31,7 @@ export default function Room() {
     lastSeenEventId,
   } = useGameStore();
   const { addEntry, updateLastNarrative } = useChatStore();
-  const { openContextMenu, addDamageEvent, setCombatResult } = useUIStore();
+  const { openContextMenu, openActionDetail, addDamageEvent, setCombatResult } = useUIStore();
   const { setEvasionRequest } = usePendingStore();
 
   // Track previous HP values to detect damage for popups
@@ -259,6 +259,48 @@ export default function Room() {
     [gameState, myPlayerId, sendWs],
   );
 
+  const handleDetailAttack = useCallback(
+    (targetId: string) => {
+      openActionDetail(targetId);
+    },
+    [openActionDetail],
+  );
+
+  const handleDetailAttackSubmit = useCallback(
+    (payload: {
+      targetId: string;
+      weaponId: string;
+      style: string;
+      moveMode: string;
+      diceDistribution: number[];
+    }) => {
+      if (!gameState || !myPlayerId) return;
+      const firstMove =
+        payload.moveMode !== "normal"
+          ? { path: [], mode: payload.moveMode }
+          : undefined;
+      sendWs({
+        action: "submit_turn_action",
+        player_id: myPlayerId,
+        room_id: gameState.room_id,
+        client_request_id: nanoid(),
+        expected_version: gameState.version,
+        turn_action: {
+          actor_id: gameState.characters.find((c) => c.player_id === myPlayerId)?.id ?? "",
+          ...(firstMove ? { first_move: firstMove } : {}),
+          main_action: {
+            type: "melee_attack",
+            weapon_id: payload.weaponId,
+            targets: [payload.targetId],
+            style: payload.style,
+            dice_distribution: payload.diceDistribution,
+          },
+        },
+      });
+    },
+    [gameState, myPlayerId, sendWs],
+  );
+
   const handleCharRightClick = useCallback(
     (charId: string, pos: { x: number; y: number }) => {
       openContextMenu(charId, pos);
@@ -281,7 +323,8 @@ export default function Room() {
         <ChatPanel onSendStatement={handleSendStatement} />
       </div>
 
-      <ContextMenu onAttack={handleAttack} />
+      <ContextMenu onAttack={handleAttack} onDetailAttack={handleDetailAttack} />
+      <ActionDetailModal onSubmit={handleDetailAttackSubmit} />
       <EvasionDialog onSubmit={handleSubmitEvasion} />
       <CombatResultModal onBackToLobby={() => navigate("/")} />
     </div>
