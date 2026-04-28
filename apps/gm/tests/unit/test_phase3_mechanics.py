@@ -6,8 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from tacex_gm.models.constants import MeleeStyle
-from tacex_gm.models.turn_action import MeleeAttack, Movement, TurnAction, Skip
-
+from tacex_gm.models.turn_action import MeleeAttack, Movement, Skip, TurnAction
 
 # ---------------------------------------------------------------------------
 # Movement model — attack_focus / tactical_maneuver / normal
