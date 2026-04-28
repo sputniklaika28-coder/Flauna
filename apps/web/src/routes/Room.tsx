@@ -13,8 +13,8 @@ import { Header, SideMenu } from "../components/layout";
 import { ChatPanel } from "../components/chat";
 import { GameMap, ContextMenu } from "../components/map";
 import { QuickActionBar, ActionDetailModal } from "../components/action";
-import { EvasionDialog, CombatResultModal } from "../components/dialogs";
-import type { GameState, EvasionPending } from "../types";
+import { EvasionDialog, CombatResultModal, DeathAvoidanceDialog } from "../components/dialogs";
+import type { GameState, EvasionPending, DeathAvoidancePending, DeathAvoidanceChoice } from "../types";
 import type { ServerMessage } from "@flauna/ws-schema";
 
 export default function Room() {
@@ -32,7 +32,7 @@ export default function Room() {
   } = useGameStore();
   const { addEntry, updateLastNarrative } = useChatStore();
   const { openContextMenu, openActionDetail, addDamageEvent, setCombatResult } = useUIStore();
-  const { setEvasionRequest } = usePendingStore();
+  const { setEvasionRequest, setDeathAvoidanceRequest } = usePendingStore();
 
   // Track previous HP values to detect damage for popups
   const prevHpRef = useRef<Record<string, number>>({});
@@ -119,6 +119,20 @@ export default function Room() {
           setEvasionRequest(req);
           break;
         }
+        case "death_avoidance_required": {
+          const daReq: DeathAvoidancePending = {
+            pending_id: msg.pending_id,
+            target_character_id: msg.target_character_id,
+            target_player_id: msg.target_player_id,
+            incoming_damage: msg.incoming_damage,
+            damage_type: msg.damage_type,
+            katashiro_required: msg.katashiro_required,
+            katashiro_remaining: msg.katashiro_remaining,
+            deadline_seconds: msg.deadline_seconds,
+          };
+          setDeathAvoidanceRequest(daReq);
+          break;
+        }
         case "ai_fallback_notice": {
           addEntry("system", `[AI fallback] ${msg.reason}`);
           break;
@@ -140,6 +154,7 @@ export default function Room() {
       addEntry,
       updateLastNarrative,
       setEvasionRequest,
+      setDeathAvoidanceRequest,
       setLastSeenEventId,
       addDamageEvent,
       setCombatResult,
@@ -229,6 +244,22 @@ export default function Room() {
       setEvasionRequest(null);
     },
     [gameState, myPlayerId, sendWs, setEvasionRequest],
+  );
+
+  const handleSubmitDeathAvoidance = useCallback(
+    (pendingId: string, choice: DeathAvoidanceChoice) => {
+      if (!gameState || !myPlayerId) return;
+      sendWs({
+        action: "submit_death_avoidance",
+        player_id: myPlayerId,
+        room_id: gameState.room_id,
+        client_request_id: nanoid(),
+        pending_id: pendingId,
+        choice,
+      });
+      setDeathAvoidanceRequest(null);
+    },
+    [gameState, myPlayerId, sendWs, setDeathAvoidanceRequest],
   );
 
   const handleAttack = useCallback(
@@ -326,6 +357,7 @@ export default function Room() {
       <ContextMenu onAttack={handleAttack} onDetailAttack={handleDetailAttack} />
       <ActionDetailModal onSubmit={handleDetailAttackSubmit} />
       <EvasionDialog onSubmit={handleSubmitEvasion} />
+      <DeathAvoidanceDialog onSubmit={handleSubmitDeathAvoidance} />
       <CombatResultModal onBackToLobby={() => navigate("/")} />
     </div>
   );

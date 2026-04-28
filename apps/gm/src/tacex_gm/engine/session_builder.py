@@ -33,6 +33,7 @@ _DEFAULT_PC = {
     "max_evasion_dice": 3,
     "armor_value": 0,
     "equipped_weapons": ["kogatana"],
+    "inventory": {"katashiro": 7},
     "skills": [],
     "arts": [],
     "aptitudes": [],

@@ -73,6 +73,19 @@ export interface EvasionPending {
   deadline_seconds: number;
 }
 
+export type DeathAvoidanceChoice = "avoid_death" | "respawn" | "accept_death";
+
+export interface DeathAvoidancePending {
+  pending_id: string;
+  target_character_id: string;
+  target_player_id: string;
+  incoming_damage: number;
+  damage_type: string;
+  katashiro_required: number;
+  katashiro_remaining: number;
+  deadline_seconds: number;
+}
+
 export type ChatKind = "gm_narrative" | "player_statement" | "system";
 
 export interface ChatEntry {

@@ -30,7 +30,7 @@ export type PlayerId3 = string;
 export type RoomId3 = string;
 export type ClientRequestId2 = string;
 export type PendingId1 = string;
-export type UseKatashiro = boolean;
+export type Choice = "avoid_death" | "respawn" | "accept_death";
 export type Action4 = "player_statement";
 export type PlayerId4 = string;
 export type RoomId4 = string;
@@ -69,7 +69,7 @@ export interface SubmitDeathAvoidance {
   room_id: RoomId3;
   client_request_id: ClientRequestId2;
   pending_id: PendingId1;
-  use_katashiro: UseKatashiro;
+  choice: Choice;
 }
 export interface PlayerStatement {
   action: Action4;
@@ -94,6 +94,7 @@ export type ServerMessage =
   | GameEventMessage
   | AiThinking
   | EvadeRequired
+  | DeathAvoidanceRequired
   | AiFallbackNotice
   | SessionLost
   | ErrorMessage;
@@ -135,17 +136,28 @@ export type PendingId = string;
 export type AttackerId = string;
 export type TargetId = string;
 export type DeadlineSeconds = number;
-export type Type7 = "ai_fallback_notice";
+export type Type7 = "death_avoidance_required";
 export type EventId7 = number;
 export type Timestamp7 = string;
-export type Reason = string;
-export type Type8 = "session_lost";
+export type PendingId1 = string;
+export type TargetCharacterId = string;
+export type TargetPlayerId = string;
+export type IncomingDamage = number;
+export type DamageType = string;
+export type KatashiroRequired = number;
+export type KatashiroRemaining = number;
+export type DeadlineSeconds1 = number;
+export type Type8 = "ai_fallback_notice";
 export type EventId8 = number;
 export type Timestamp8 = string;
-export type Reason1 = string;
-export type Type9 = "error";
+export type Reason = string;
+export type Type9 = "session_lost";
 export type EventId9 = number;
 export type Timestamp9 = string;
+export type Reason1 = string;
+export type Type10 = "error";
+export type EventId10 = number;
+export type Timestamp10 = string;
 export type Code = string;
 export type Message = string;
 export type Detail = {
@@ -213,22 +225,35 @@ export interface EvadeRequired {
   target_id: TargetId;
   deadline_seconds: DeadlineSeconds;
 }
-export interface AiFallbackNotice {
+export interface DeathAvoidanceRequired {
   type: Type7;
   event_id: EventId7;
   timestamp: Timestamp7;
-  reason: Reason;
+  pending_id: PendingId1;
+  target_character_id: TargetCharacterId;
+  target_player_id: TargetPlayerId;
+  incoming_damage: IncomingDamage;
+  damage_type: DamageType;
+  katashiro_required: KatashiroRequired;
+  katashiro_remaining: KatashiroRemaining;
+  deadline_seconds: DeadlineSeconds1;
 }
-export interface SessionLost {
+export interface AiFallbackNotice {
   type: Type8;
   event_id: EventId8;
   timestamp: Timestamp8;
-  reason: Reason1;
+  reason: Reason;
 }
-export interface ErrorMessage {
+export interface SessionLost {
   type: Type9;
   event_id: EventId9;
   timestamp: Timestamp9;
+  reason: Reason1;
+}
+export interface ErrorMessage {
+  type: Type10;
+  event_id: EventId10;
+  timestamp: Timestamp10;
   code: Code;
   message: Message;
   detail?: Detail;

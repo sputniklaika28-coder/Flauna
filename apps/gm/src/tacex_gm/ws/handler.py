@@ -1,4 +1,4 @@
-"""WebSocket handler — Phase 3 combat loop (GM spec §7-6, §8, §10-1).
+"""WebSocket handler — Phase 4 combat loop (GM spec §7-6, §8, §10-1, §10-2).
 
 Phase 3 additions:
   - 攻撃集中 (attack_focus): no first move, attack difficulty −1
@@ -6,11 +6,17 @@ Phase 3 additions:
   - 連撃 (RENGEKI): even dice distribution validation
   - Evasion dice tracking: consumed on use, restored at turn start
 
+Phase 4 additions:
+  - 全スタイル: style-based difficulty modifiers for MeleeStyle / RangedStyle
+  - 形代システム: death avoidance when damage > current HP × 2 (§10-2, D34)
+  - リスポーン: HP half-restore, status clear, move to respawn_point (D36)
+
 Flow per turn:
   PC turn  → wait for submit_turn_action → resolve attack (NPC auto-evades)
            → apply damage → narrate → advance
   NPC turn → select_default_action → resolve attack → send evade_required
-           → wait for submit_evasion → apply damage → narrate → advance
+           → wait for submit_evasion → check death avoidance → apply damage
+           → narrate → advance
 """
 
 from __future__ import annotations
@@ -48,9 +54,9 @@ from tacex_gm.models import (
     RangedAttack,
     TurnAction,
 )
-from tacex_gm.models.constants import DIFFICULTY_NORMAL, MeleeStyle
+from tacex_gm.models.constants import DIFFICULTY_NORMAL, MeleeStyle, RangedStyle
 from tacex_gm.models.event import TurnSummary
-from tacex_gm.models.pending import EvasionRequest, IncomingAttack
+from tacex_gm.models.pending import DeathAvoidanceRequest, EvasionRequest, IncomingAttack
 from tacex_gm.models.turn_action import PegAttack
 from tacex_gm.room.session import RoomSession, RoomStore
 from tacex_gm.scenario.loader import load_scenario
@@ -58,6 +64,7 @@ from tacex_gm.ws.messages import (
     AiFallbackNotice,
     AiThinking,
     ClientMessage,
+    DeathAvoidanceRequired,
     ErrorMessage,
     EvadeRequired,
     GameEventMessage,
@@ -65,6 +72,7 @@ from tacex_gm.ws.messages import (
     JoinRoom,
     SessionRestore,
     StateFull,
+    SubmitDeathAvoidance,
     SubmitEvasion,
     SubmitTurnAction,
 )
@@ -362,6 +370,14 @@ async def _run_pc_turn(
                             session.state = state
                             return
 
+            # Phase 4: add attack-style difficulty modifier on top of movement modifier.
+            if isinstance(attack, MeleeAttack):
+                style_modifier += _melee_style_modifier(attack.style)
+            elif isinstance(attack, (RangedAttack, PegAttack)):
+                style_modifier += _ranged_style_modifier(
+                    attack.style if isinstance(attack, RangedAttack) else RangedStyle.NONE
+                )
+
             hit_outcomes = await resolve_attack(
                 attacker=actor,
                 weapon=weapon,
@@ -608,6 +624,9 @@ async def _run_npc_turn(
 
     evasion_msg = await _wait_for_evasion(websocket, evasion_request.pending_id)
 
+    # Phase 4: may be filled when a hit triggers death avoidance.
+    death_avoidance_context: dict[str, Any] = {}
+
     async with session.lock.acquire():
         state = session.state
         assert state is not None
@@ -656,6 +675,41 @@ async def _run_npc_turn(
                 dmg = await compute_damage(
                     attacker=actor_char, target=evade_target, weapon=weapon, dice_engine=dice
                 )
+                # Phase 4: check death avoidance trigger (§10-2, D34).
+                if (
+                    evade_target.faction == "pc"
+                    and _death_avoidance_triggered(dmg.final_damage, evade_target.hp)
+                    and _katashiro_count(evade_target) >= _KATASHIRO_COST
+                ):
+                    pending_da_id = str(uuid.uuid4())
+                    _valid = ("physical", "spiritual")
+                    _dmg_type = dmg.damage_type if dmg.damage_type in _valid else "physical"
+                    _pending_da = DeathAvoidanceRequest.with_default_deadline(
+                        pending_id=pending_da_id,
+                        target_character_id=evade_target.id,
+                        target_player_id=player_id,
+                        incoming_damage=dmg.final_damage,
+                        damage_type=_dmg_type,  # type: ignore[arg-type]
+                        katashiro_required=_KATASHIRO_COST,
+                        katashiro_remaining=_katashiro_count(evade_target),
+                        timeout_seconds=_DEATH_AVOIDANCE_TIMEOUT,
+                    )
+                    state = state.model_copy(
+                        update={
+                            "pending_actions": [*state.pending_actions, _pending_da],
+                            "machine_state": MachineState.AWAITING_PLAYER_INPUT,
+                        }
+                    )
+                    session.state = state
+                    death_avoidance_context = {
+                        "da_request": _pending_da,
+                        "dmg": dmg,
+                        "target_id": evade_target.id,
+                        "actor_char": actor_char,
+                        "weapon": weapon,
+                    }
+                    break  # Suspend; handle outside the lock.
+
                 new_target = apply_damage(evade_target, dmg)
                 state = _replace_character(state, new_target)
                 session.state = state
@@ -673,6 +727,120 @@ async def _run_npc_turn(
                     )
                 evade_target = new_target
 
+        if not death_avoidance_context:
+            state = state.model_copy(
+                update={
+                    "version": state.version + 1,
+                    "machine_state": MachineState.NARRATING,
+                    "current_turn_summary": summary,
+                }
+            )
+            session.state = state
+            await _send_state_update(websocket, state)
+            await _emit_event(websocket, state, "turn_ended", {"actor_id": actor_char.id})
+
+            narrative = (
+                "\n".join(narrative_parts) if narrative_parts else f"{actor_char.name}は行動した。"
+            )
+            await _send_narrative(websocket, state, narrative)
+
+            state = _advance_turn(state)
+            state = state.model_copy(update={"machine_state": MachineState.IDLE})
+            session.state = state
+            await _send_state_update(websocket, state)
+
+    # ---------------------------------------------------------------------------
+    # Phase 4: Death avoidance flow — outside the lock.
+    # ---------------------------------------------------------------------------
+    if not death_avoidance_context:
+        return
+
+    da_request: DeathAvoidanceRequest = death_avoidance_context["da_request"]
+    da_dmg = death_avoidance_context["dmg"]
+    da_actor: Character = death_avoidance_context["actor_char"]
+    da_weapon = death_avoidance_context["weapon"]
+    da_target_id: str = death_avoidance_context["target_id"]
+
+    await _send_ws(
+        websocket,
+        DeathAvoidanceRequired(
+            type="death_avoidance_required",
+            event_id=state.next_event_id,
+            timestamp=_now(),
+            pending_id=da_request.pending_id,
+            target_character_id=da_request.target_character_id,
+            target_player_id=da_request.target_player_id,
+            incoming_damage=da_dmg.final_damage,
+            damage_type=da_dmg.damage_type,
+            katashiro_required=_KATASHIRO_COST,
+            katashiro_remaining=da_request.katashiro_remaining,
+            deadline_seconds=_DEATH_AVOIDANCE_TIMEOUT,
+        ),
+    )
+
+    da_msg = await _wait_for_death_avoidance(websocket, da_request.pending_id)
+    choice = da_msg.choice if da_msg is not None else "accept_death"
+
+    async with session.lock.acquire():
+        state = session.state
+        assert state is not None
+
+        state = state.model_copy(
+            update={
+                "pending_actions": [
+                    p for p in state.pending_actions if p.pending_id != da_request.pending_id
+                ],
+                "machine_state": MachineState.RESOLVING_ACTION,
+            }
+        )
+        session.state = state
+
+        da_target = state.find_character(da_target_id)
+        if da_target is None:
+            state = _advance_turn(state)
+            state = state.model_copy(update={"machine_state": MachineState.IDLE})
+            session.state = state
+            return
+
+        if choice == "avoid_death" and _katashiro_count(da_target) >= _KATASHIRO_COST:
+            da_target = _consume_katashiro(da_target, _KATASHIRO_COST)
+            da_target = da_target.model_copy(update={"hp": 1})
+            state = _replace_character(state, da_target)
+            session.state = state
+            narrative_parts.append(
+                f"{da_target.name}は形代{_KATASHIRO_COST}枚を消費して死の淵から生還した！（HP: 1）"
+            )
+        elif choice == "respawn" and _katashiro_count(da_target) >= _KATASHIRO_COST:
+            respawn_point = state.scenario.respawn_point or (0, 0)
+            da_target = _consume_katashiro(da_target, _KATASHIRO_COST)
+            da_target = _apply_respawn(da_target, respawn_point)
+            state = _replace_character(state, da_target)
+            session.state = state
+            narrative_parts.append(
+                f"{da_target.name}は形代{_KATASHIRO_COST}枚を消費してリスポーン地点に転移した！"
+                f"（HP: {da_target.hp}/{da_target.max_hp}）"
+            )
+            await _emit_event(
+                websocket, state, "character_respawned", {"character_id": da_target.id}
+            )
+        else:
+            # accept_death or insufficient katashiro — apply damage.
+            new_target = apply_damage(da_target, da_dmg)
+            state = _replace_character(state, new_target)
+            session.state = state
+            summary.damage_dealt[da_target.id] = (
+                summary.damage_dealt.get(da_target.id, 0) + da_dmg.final_damage
+            )
+            narrative_parts.append(
+                f"{da_actor.name}の{da_weapon.name}が{da_target.name}に{da_dmg.final_damage}ダメージ！"
+                f"（残りHP: {new_target.hp}/{new_target.max_hp}）"
+            )
+            if not new_target.is_alive:
+                narrative_parts.append(f"{da_target.name}は倒れた！")
+                await _emit_event(
+                    websocket, state, "character_died", {"character_id": da_target.id}
+                )
+
         state = state.model_copy(
             update={
                 "version": state.version + 1,
@@ -682,10 +850,10 @@ async def _run_npc_turn(
         )
         session.state = state
         await _send_state_update(websocket, state)
-        await _emit_event(websocket, state, "turn_ended", {"actor_id": actor_char.id})
+        await _emit_event(websocket, state, "turn_ended", {"actor_id": da_actor.id})
 
         narrative = (
-            "\n".join(narrative_parts) if narrative_parts else f"{actor_char.name}は行動した。"
+            "\n".join(narrative_parts) if narrative_parts else f"{da_actor.name}は行動した。"
         )
         await _send_narrative(websocket, state, narrative)
 
@@ -841,3 +1009,80 @@ def _render_combat_end(session: RoomSession, outcome: str) -> str:
     if outcome == "victory":
         return "全ての敵を倒した。任務完了だ。"
     return "全滅……。今回は退くしかない。"
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Style modifiers (§6-7, §19)
+# ---------------------------------------------------------------------------
+
+_MELEE_STYLE_MODIFIER: dict[MeleeStyle, int] = {
+    MeleeStyle.NONE: 0,
+    MeleeStyle.RENGEKI: 0,       # Distribution handled elsewhere; no difficulty shift.
+    MeleeStyle.SEIMITSU: -1,     # 精密攻撃: aim carefully → easier to hit.
+    MeleeStyle.KYOUKOUGEKI: 1,   # 強攻撃: heavy blow → harder to land.
+    MeleeStyle.ZENRYOKU: 1,      # 全力攻撃: all-out → overextended → harder.
+}
+
+_RANGED_STYLE_MODIFIER: dict[RangedStyle, int] = {
+    RangedStyle.NONE: 0,
+    RangedStyle.NIKAI_SHAGEKI: 0,  # 2回射撃: two shots, standard accuracy each.
+    RangedStyle.RENSHA: 0,         # 連射: rapid fire spread.
+    RangedStyle.RENSHA_II: 0,      # 連射II: more targets, same accuracy.
+    RangedStyle.SOGEKI: -2,        # 狙撃: sniper — precise, much easier to hit.
+    RangedStyle.NUKIUCHI: 0,       # 抜き撃ち: quick draw, no accuracy trade.
+}
+
+
+def _melee_style_modifier(style: MeleeStyle) -> int:
+    return _MELEE_STYLE_MODIFIER.get(style, 0)
+
+
+def _ranged_style_modifier(style: RangedStyle) -> int:
+    return _RANGED_STYLE_MODIFIER.get(style, 0)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: Death avoidance helpers (§10-2, D34, D36)
+# ---------------------------------------------------------------------------
+
+_KATASHIRO_COST = 2
+_DEATH_AVOIDANCE_TIMEOUT = 60
+
+
+def _death_avoidance_triggered(damage: int, current_hp: int) -> bool:
+    """True when physical damage exceeds current HP × 2 (GM spec §10-2 / D34)."""
+    return damage > current_hp * 2
+
+
+def _katashiro_count(char: Character) -> int:
+    return char.inventory.get("katashiro", 0)
+
+
+def _consume_katashiro(char: Character, count: int) -> Character:
+    current = _katashiro_count(char)
+    new_count = max(0, current - count)
+    new_inventory = {**char.inventory, "katashiro": new_count}
+    return char.model_copy(update={"inventory": new_inventory})
+
+
+def _apply_respawn(char: Character, respawn_point: tuple[int, int]) -> Character:
+    """Half-HP restore, status effects cleared, cannot act this turn (D36)."""
+    return char.model_copy(
+        update={
+            "hp": max(1, char.max_hp // 2),
+            "status_effects": [],
+            "position": respawn_point,
+            "has_acted_this_turn": True,
+        }
+    )
+
+
+async def _wait_for_death_avoidance(
+    websocket: WebSocket, pending_id: str
+) -> SubmitDeathAvoidance | None:
+    """Wait for the matching submit_death_avoidance message."""
+    raw = await websocket.receive_text()
+    msg = _parse_client_message(raw)
+    if isinstance(msg, SubmitDeathAvoidance) and msg.pending_id == pending_id:
+        return msg
+    return None
