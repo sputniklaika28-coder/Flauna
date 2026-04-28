@@ -1,0 +1,48 @@
+import { useTranslation } from "react-i18next";
+import { useGameStore } from "../../stores";
+
+const STATUS_COLORS: Record<string, string> = {
+  ACTIVE: "bg-green-500",
+  CONNECTING: "bg-yellow-400",
+  AUTHENTICATING: "bg-yellow-400",
+  DISCONNECTED: "bg-red-500",
+  SESSION_LOST: "bg-red-700",
+};
+
+export default function Header() {
+  const { t } = useTranslation();
+  const { gameState, connectionStatus } = useGameStore();
+
+  const phaseKey = gameState
+    ? (`room.phase.${gameState.phase}` as const)
+    : null;
+
+  return (
+    <header className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white text-sm">
+      <span className="font-bold">{t("app.name")}</span>
+
+      <div className="flex items-center gap-3">
+        {gameState && (
+          <>
+            <span>{t("room.round", { n: gameState.round_number })}</span>
+            <span className="text-gray-400">
+              {phaseKey ? t(phaseKey) : ""}
+            </span>
+            <span className="text-gray-500 font-mono text-xs">
+              {gameState.room_id}
+            </span>
+          </>
+        )}
+        <span
+          className={`w-2 h-2 rounded-full ${STATUS_COLORS[connectionStatus] ?? "bg-gray-500"}`}
+          title={connectionStatus}
+        />
+        <span className="text-gray-400">
+          {connectionStatus === "ACTIVE"
+            ? t("room.connected")
+            : t("room.connecting")}
+        </span>
+      </div>
+    </header>
+  );
+}
