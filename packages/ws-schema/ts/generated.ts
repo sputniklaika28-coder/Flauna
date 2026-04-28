@@ -1,4 +1,5 @@
 // AUTO-GENERATED — do not edit manually. Run: bash packages/ws-schema/scripts/generate.sh
+// @ts-nocheck
 
 /* eslint-disable */
 /**
