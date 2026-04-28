@@ -142,9 +142,7 @@ class TestAvoidDeath:
 # ---------------------------------------------------------------------------
 
 
-def _apply_respawn(
-    char: Character, respawn_point: tuple[int, int]
-) -> Character:
+def _apply_respawn(char: Character, respawn_point: tuple[int, int]) -> Character:
     return char.model_copy(
         update={
             "hp": max(1, char.max_hp // 2),
@@ -168,10 +166,9 @@ class TestRespawn:
 
     def test_respawn_clears_status_effects(self):
         from tacex_gm.models.character import StatusEffect
+
         pc = _make_pc(hp=1)
-        pc = pc.model_copy(
-            update={"status_effects": [StatusEffect(name="stun", duration=2)]}
-        )
+        pc = pc.model_copy(update={"status_effects": [StatusEffect(name="stun", duration=2)]})
         respawned = _apply_respawn(pc, (10, 10))
         assert respawned.status_effects == []
 

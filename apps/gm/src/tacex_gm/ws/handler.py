@@ -1017,19 +1017,19 @@ def _render_combat_end(session: RoomSession, outcome: str) -> str:
 
 _MELEE_STYLE_MODIFIER: dict[MeleeStyle, int] = {
     MeleeStyle.NONE: 0,
-    MeleeStyle.RENGEKI: 0,       # Distribution handled elsewhere; no difficulty shift.
-    MeleeStyle.SEIMITSU: -1,     # 精密攻撃: aim carefully → easier to hit.
-    MeleeStyle.KYOUKOUGEKI: 1,   # 強攻撃: heavy blow → harder to land.
-    MeleeStyle.ZENRYOKU: 1,      # 全力攻撃: all-out → overextended → harder.
+    MeleeStyle.RENGEKI: 0,  # Distribution handled elsewhere; no difficulty shift.
+    MeleeStyle.SEIMITSU: -1,  # 精密攻撃: aim carefully → easier to hit.
+    MeleeStyle.KYOUKOUGEKI: 1,  # 強攻撃: heavy blow → harder to land.
+    MeleeStyle.ZENRYOKU: 1,  # 全力攻撃: all-out → overextended → harder.
 }
 
 _RANGED_STYLE_MODIFIER: dict[RangedStyle, int] = {
     RangedStyle.NONE: 0,
     RangedStyle.NIKAI_SHAGEKI: 0,  # 2回射撃: two shots, standard accuracy each.
-    RangedStyle.RENSHA: 0,         # 連射: rapid fire spread.
-    RangedStyle.RENSHA_II: 0,      # 連射II: more targets, same accuracy.
-    RangedStyle.SOGEKI: -2,        # 狙撃: sniper — precise, much easier to hit.
-    RangedStyle.NUKIUCHI: 0,       # 抜き撃ち: quick draw, no accuracy trade.
+    RangedStyle.RENSHA: 0,  # 連射: rapid fire spread.
+    RangedStyle.RENSHA_II: 0,  # 連射II: more targets, same accuracy.
+    RangedStyle.SOGEKI: -2,  # 狙撃: sniper — precise, much easier to hit.
+    RangedStyle.NUKIUCHI: 0,  # 抜き撃ち: quick draw, no accuracy trade.
 }
 
 
