@@ -462,7 +462,7 @@ async def _run_pc_turn(
                     if not new_target.is_alive:
                         narrative_parts.append(f"{target.name}は倒れた！")
                         await _emit_event(
-                            websocket, state, "character_died", {"character_id": target.id}
+                            session, state, "character_died", {"character_id": target.id}
                         )
                     target = new_target
 
@@ -650,7 +650,7 @@ async def _run_npc_turn(
     assert evasion_request is not None
 
     # Phase 6: route to the target player's WebSocket if available.
-    target_ws = session.connections.get(evasion_request.target_player_id, websocket)
+    target_ws = session.connections.get(evasion_request.target_player_id or player_id, websocket)
     await _send_ws(
         target_ws,
         EvadeRequired(
@@ -665,7 +665,7 @@ async def _run_npc_turn(
     )
 
     # Phase 6: wait on the target player's message queue.
-    target_queue = session.message_queues.get(evasion_request.target_player_id)
+    target_queue = session.message_queues.get(evasion_request.target_player_id or player_id)
     evasion_msg = await _wait_for_evasion_from_queue(
         target_queue, evasion_request.pending_id, websocket
     )
@@ -769,7 +769,7 @@ async def _run_npc_turn(
                 if not new_target.is_alive:
                     narrative_parts.append(f"{evade_target.name}は倒れた！")
                     await _emit_event(
-                        websocket, state, "character_died", {"character_id": evade_target.id}
+                        session, state, "character_died", {"character_id": evade_target.id}
                     )
                 evade_target = new_target
 
@@ -870,7 +870,7 @@ async def _run_npc_turn(
                 f"（HP: {da_target.hp}/{da_target.max_hp}）"
             )
             await _emit_event(
-                websocket, state, "character_respawned", {"character_id": da_target.id}
+                session, state, "character_respawned", {"character_id": da_target.id}
             )
         else:
             # accept_death or insufficient katashiro — apply damage.
@@ -887,7 +887,7 @@ async def _run_npc_turn(
             if not new_target.is_alive:
                 narrative_parts.append(f"{da_target.name}は倒れた！")
                 await _emit_event(
-                    websocket, state, "character_died", {"character_id": da_target.id}
+                    session, state, "character_died", {"character_id": da_target.id}
                 )
 
         state = state.model_copy(
