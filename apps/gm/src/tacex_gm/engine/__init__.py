@@ -1,5 +1,6 @@
 """Core rule-engine primitives (Phase 1)."""
 
+from .cast_art import CastArtResolution, resolve_cast_art
 from .combat import (
     CombatResolutionError,
     DamageBreakdown,
@@ -25,6 +26,7 @@ from .geometry import (
 
 __all__ = [
     "DEFAULT_NPC_ACTIONS",
+    "CastArtResolution",
     "CombatResolutionError",
     "DamageBreakdown",
     "DiceEngine",
@@ -42,6 +44,7 @@ __all__ = [
     "melee_attack_difficulty",
     "ranged_attack_difficulty",
     "resolve_attack",
+    "resolve_cast_art",
     "resolve_evasion",
     "select_default_action",
     "validate_movement_path",

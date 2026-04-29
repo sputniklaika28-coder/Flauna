@@ -20,7 +20,7 @@ from tacex_gm.room.lock import RoomLock, RoomLockRegistry
 from tacex_gm.ws.idempotency import IdempotencyCache
 
 if TYPE_CHECKING:
-    pass
+    from tacex_gm.persistence import Repository
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +112,13 @@ class RoomSession:
 
 
 class RoomStore:
-    """Process-local in-memory room registry."""
+    """Process-local in-memory room registry.
+
+    When ``repository`` is provided, room creation/deletion is mirrored to
+    SQLite (Phase 8) so rooms survive a process restart.  The in-memory
+    map is still authoritative during a session's lifetime — persistence
+    is purely for crash/restart recovery.
+    """
 
     def __init__(
         self,
@@ -121,6 +127,7 @@ class RoomStore:
         narration: NarrationTemplateEngine,
         weapon_catalog: dict[str, Weapon],
         enemy_catalog: dict[str, dict[str, Any]],
+        repository: Repository | None = None,
     ) -> None:
         self._lock_registry = lock_registry
         self._llm_backend = llm_backend
@@ -129,6 +136,11 @@ class RoomStore:
         self._enemy_catalog = enemy_catalog
         self._rooms: dict[str, RoomSession] = {}
         self._guard = asyncio.Lock()
+        self._repository = repository
+
+    @property
+    def repository(self) -> Repository | None:
+        return self._repository
 
     async def create_session(self, room_id: str, scenario_id: str) -> RoomSession:
         lock = await self._lock_registry.get(room_id)
@@ -144,6 +156,8 @@ class RoomStore:
         )
         async with self._guard:
             self._rooms[room_id] = session
+        if self._repository is not None:
+            await self._repository.upsert_room(room_id, scenario_id)
         return session
 
     def get_session(self, room_id: str) -> RoomSession | None:
@@ -152,3 +166,35 @@ class RoomStore:
     async def delete_session(self, room_id: str) -> None:
         async with self._guard:
             self._rooms.pop(room_id, None)
+        if self._repository is not None:
+            await self._repository.delete_room(room_id)
+
+    async def restore_from_repository(self) -> int:
+        """Re-create empty :class:`RoomSession` objects for every persisted room.
+
+        Returns the number of rooms restored.  GameState is *not* rehydrated
+        here — that happens lazily on the next WebSocket connection, falling
+        back to a fresh scenario load if no snapshot exists.
+        """
+        if self._repository is None:
+            return 0
+        rooms = await self._repository.list_rooms()
+        restored = 0
+        for room in rooms:
+            if room.room_id in self._rooms:
+                continue
+            lock = await self._lock_registry.get(room.room_id)
+            session = RoomSession(
+                room_id=room.room_id,
+                scenario_id=room.scenario_id,
+                lock=lock,
+                idempotency=IdempotencyCache(max_size=256),
+                weapon_catalog=self._weapon_catalog,
+                enemy_catalog=self._enemy_catalog,
+                llm_backend=self._llm_backend,
+                narration=self._narration,
+            )
+            async with self._guard:
+                self._rooms[room.room_id] = session
+            restored += 1
+        return restored

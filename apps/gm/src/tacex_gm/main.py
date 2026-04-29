@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, WebSocket
@@ -11,6 +13,7 @@ from tacex_gm.ai.mock_backend import MockLLMBackend
 from tacex_gm.ai.narration_engine import NarrationTemplateEngine
 from tacex_gm.api.rooms import router as rooms_router
 from tacex_gm.config import settings
+from tacex_gm.persistence import Repository, open_database
 from tacex_gm.room.lock import RoomLockRegistry
 from tacex_gm.room.session import RoomStore
 from tacex_gm.scenario.loader import load_enemies, load_narration_templates, load_weapons
@@ -55,7 +58,24 @@ def _load_resources() -> RoomStore:
 # App factory
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="TacEx-GM", version="0.0.0")
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Phase 8: open the SQLite repository (if configured) and restore rooms."""
+    if settings.db_path:
+        db = await open_database(settings.db_path)
+        repository = Repository(db)
+        store: RoomStore = app.state.room_store
+        store._repository = repository
+        app.state.repository = repository
+        restored = await store.restore_from_repository()
+        logging.getLogger(__name__).info(
+            "persistence enabled (db=%s, restored=%d)", settings.db_path, restored
+        )
+    yield
+
+
+app = FastAPI(title="TacEx-GM", version="0.0.0", lifespan=_lifespan)
 
 app.add_middleware(
     CORSMiddleware,

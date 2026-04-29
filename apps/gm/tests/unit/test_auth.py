@@ -25,10 +25,11 @@ class TestIssueMasterToken:
 
     def test_token_stored_with_correct_payload(self):
         token = issue_master_token("room-abc")
-        payload = _tokens[token]
+        payload, expires_at = _tokens[token]
         assert payload["room_id"] == "room-abc"
         assert payload["player_id"] == "master"
         assert payload["role"] == "master"
+        assert expires_at > 0
 
     def test_different_tokens_for_different_rooms(self):
         t1 = issue_master_token("room-1")
@@ -48,10 +49,11 @@ class TestIssuePlayerToken:
 
     def test_token_stored_with_correct_payload(self):
         token = issue_player_token("room-abc", "player-1")
-        payload = _tokens[token]
+        payload, expires_at = _tokens[token]
         assert payload["room_id"] == "room-abc"
         assert payload["player_id"] == "player-1"
         assert payload["role"] == "player"
+        assert expires_at > 0
 
     def test_tokens_are_unique(self):
         tokens = {issue_player_token("room-x", f"player-{i}") for i in range(20)}
