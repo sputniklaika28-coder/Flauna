@@ -10,7 +10,6 @@ from tacex_gm.engine.growth import GrowthProposal, apply_growth, propose_growth
 from tacex_gm.engine.scenario_triggers import (
     events_for_compound,
     events_for_hp_threshold,
-    mark_event_fired,
 )
 from tacex_gm.engine.victory import check_combat_outcome
 from tacex_gm.models.character import Character
@@ -21,14 +20,12 @@ from tacex_gm.models.scenario import (
     ScenarioEvent,
     TriggerCharacterDies,
     TriggerCompound,
-    TriggerEnterZone,
     TriggerHPThreshold,
     TriggerRoundReached,
     VictoryAllEnemiesDefeated,
     VictoryReachZone,
 )
 from tacex_gm.models.state import GameState
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -60,7 +57,9 @@ def _make_pc(
     )
 
 
-def _make_enemy(char_id: str = "enemy1", hp: int = 10, position: tuple[int, int] = (5, 5)) -> Character:
+def _make_enemy(
+    char_id: str = "enemy1", hp: int = 10, position: tuple[int, int] = (5, 5)
+) -> Character:
     return Character(
         id=char_id,
         name="鬱黒揚羽",
@@ -161,7 +160,9 @@ def test_hp_threshold_invalid_below_zero():
 def _hp_threshold_event(char_id: str, threshold_pct: float) -> ScenarioEvent:
     return ScenarioEvent(
         id=f"ev_hp_{char_id}",
-        trigger=TriggerHPThreshold(type="hp_threshold", character_id=char_id, threshold_pct=threshold_pct),
+        trigger=TriggerHPThreshold(
+            type="hp_threshold", character_id=char_id, threshold_pct=threshold_pct
+        ),
         actions=[ActionShowNarrative(type="show_narrative", text="threshold hit")],
     )
 

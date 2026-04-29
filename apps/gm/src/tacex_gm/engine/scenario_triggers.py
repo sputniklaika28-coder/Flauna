@@ -180,9 +180,7 @@ def events_for_hp_threshold(
     for ev in state.scenario.events:
         if ev.fired and ev.once:
             continue
-        if isinstance(ev.trigger, TriggerHPThreshold) and _matches_hp_threshold(
-            ev.trigger, state
-        ):
+        if isinstance(ev.trigger, TriggerHPThreshold) and _matches_hp_threshold(ev.trigger, state):
             result.append(ev)
     return result
 
@@ -196,9 +194,7 @@ def events_for_compound(
     for ev in state.scenario.events:
         if ev.fired and ev.once:
             continue
-        if isinstance(ev.trigger, TriggerCompound) and _matches_trigger(
-            ev.trigger, state, context
-        ):
+        if isinstance(ev.trigger, TriggerCompound) and _matches_trigger(ev.trigger, state, context):
             result.append(ev)
     return result
 

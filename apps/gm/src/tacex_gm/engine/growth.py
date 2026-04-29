@@ -77,9 +77,7 @@ def propose_growth(
 
     for art in _pool_for_grade(grade, _ART_POOL_BY_GRADE):
         if art not in character.arts:
-            proposals.append(
-                GrowthProposal(character_id=character.id, grow_type="art", name=art)
-            )
+            proposals.append(GrowthProposal(character_id=character.id, grow_type="art", name=art))
 
     return proposals
 
@@ -92,8 +90,7 @@ def apply_growth(character: Character, proposal: GrowthProposal) -> Character:
     """
     if proposal.character_id != character.id:
         raise ValueError(
-            f"Proposal is for character '{proposal.character_id}', "
-            f"not '{character.id}'"
+            f"Proposal is for character '{proposal.character_id}', not '{character.id}'"
         )
     if proposal.grow_type == "skill":
         if proposal.name in character.skills:
