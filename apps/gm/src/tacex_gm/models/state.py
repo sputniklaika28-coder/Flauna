@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from .character import Character
 from .event import GameEvent, TurnSummary
 from .pending import DeathAvoidanceRequest, EvasionRequest
+from .pressure import CombatPressure
 from .scenario import Scenario
 
 Coordinate = tuple[int, int]
@@ -88,6 +89,9 @@ class GameState(BaseModel):
     wires: list[Wire] = Field(default_factory=list)
     barriers: list[Annotated[Barrier, Field()]] = Field(default_factory=list)
     objects: list[MapObject] = Field(default_factory=list)
+
+    # Phase 6: hard mode escalation (§10-3, D35)
+    combat_pressure: CombatPressure = Field(default_factory=CombatPressure)
 
     current_turn_summary: TurnSummary | None = None
     pending_actions: list[PendingAction] = Field(default_factory=list)

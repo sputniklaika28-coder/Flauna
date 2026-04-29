@@ -123,3 +123,28 @@ def build_initial_state(
         next_event_id=next_event_id,
     )
     return state, pc_id
+
+
+def build_character_from_template(
+    template: dict[str, Any],
+    *,
+    char_id: str,
+    position: Coordinate,
+) -> Character:
+    """Build a Character from an enemy-catalog template dict.
+
+    Used by spawn_enemy scenario actions (Phase 6).
+    """
+    from tacex_gm.models import NPCEvasionPolicy
+
+    base = dict(template)
+    base["id"] = char_id
+    base["faction"] = base.get("faction", "enemy")
+    base["position"] = position
+
+    if "evasion_policy" in base and isinstance(base["evasion_policy"], dict):
+        base["evasion_policy"] = NPCEvasionPolicy(**base["evasion_policy"])
+
+    base.pop("aptitudes", None)
+    base.pop("description", None)
+    return Character.model_validate(base)

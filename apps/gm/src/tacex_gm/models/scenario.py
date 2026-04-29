@@ -31,13 +31,20 @@ class TriggerCharacterDies(BaseModel):
 
 
 class TriggerRoundReached(BaseModel):
-    """Phase 6 以降。Phase 1 でフィールドだけ持っておく。"""
+    """Fire when the round counter reaches the specified value (Phase 6)."""
 
     type: Literal["round_reached"]
     round: int = Field(ge=1)
 
 
-Trigger = TriggerEnterZone | TriggerCharacterDies | TriggerRoundReached
+class TriggerObjectDestroyed(BaseModel):
+    """Fire when a MapObject's strength drops to 0 (Phase 6)."""
+
+    type: Literal["object_destroyed"]
+    object_id: str
+
+
+Trigger = TriggerEnterZone | TriggerCharacterDies | TriggerRoundReached | TriggerObjectDestroyed
 
 
 class ActionSpawnEnemy(BaseModel):
@@ -60,6 +67,7 @@ class ScenarioEvent(BaseModel):
     trigger: Trigger
     actions: list[ScenarioAction]
     once: bool = True
+    fired: bool = False  # True after a once=True event has been triggered.
 
 
 class VictoryAllEnemiesDefeated(BaseModel):
