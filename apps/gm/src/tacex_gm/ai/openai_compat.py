@@ -26,8 +26,7 @@ try:
     from openai import AsyncOpenAI
 except ImportError as exc:  # pragma: no cover
     raise ImportError(
-        "openai package is required for OpenAICompatBackend. "
-        "Install it with: pip install openai"
+        "openai package is required for OpenAICompatBackend. Install it with: pip install openai"
     ) from exc
 
 from .backend import (
