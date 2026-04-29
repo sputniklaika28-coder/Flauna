@@ -6,7 +6,12 @@ import nanoid  # type: ignore[import-untyped]
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
-from tacex_gm.auth import issue_master_token, issue_player_token
+from tacex_gm.auth import (
+    hash_token,
+    issue_master_token,
+    issue_player_token,
+    token_expiry,
+)
 from tacex_gm.errors import ErrorCode
 from tacex_gm.room.session import RoomStore
 
@@ -95,6 +100,18 @@ async def create_room(
     assert session is not None
     session.register_player(player_id, req.player_name)
 
+    repository = room_store.repository
+    if repository is not None:
+        await repository.upsert_player(player_id, room_id, req.player_name)
+        master_expiry = token_expiry(master_token) or 0.0
+        player_expiry = token_expiry(player_token) or 0.0
+        await repository.insert_auth_token(
+            hash_token(master_token), room_id, "master", "master", master_expiry
+        )
+        await repository.insert_auth_token(
+            hash_token(player_token), room_id, player_id, "player", player_expiry
+        )
+
     return CreateRoomResponse(
         room_id=room_id,
         master_token=master_token,
@@ -129,6 +146,17 @@ async def join_room(
     player_id = f"player-{nanoid.generate(size=8)}"
     player_token = issue_player_token(room_id, player_id)
     session.register_player(player_id, req.player_name)
+
+    repository = room_store.repository
+    if repository is not None:
+        await repository.upsert_player(player_id, room_id, req.player_name)
+        await repository.insert_auth_token(
+            hash_token(player_token),
+            room_id,
+            player_id,
+            "player",
+            token_expiry(player_token) or 0.0,
+        )
 
     return JoinRoomResponse(
         player_id=player_id,

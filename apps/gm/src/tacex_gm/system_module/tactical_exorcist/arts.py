@@ -74,3 +74,59 @@ def validate_cast_target(art: ArtDefinition, target: str | None) -> str | None:
     if art.target_type in ("none", "self") and target is not None:
         return f"Art '{art.name}' does not accept a target_id"
     return None
+
+
+# ---------------------------------------------------------------------------
+# Phase 8: 複数術修得 — multi-art mastery validation
+# ---------------------------------------------------------------------------
+
+
+def known_arts(character: object) -> list[str]:
+    """Return the list of arts the character has learned.
+
+    Accepts anything with an ``arts`` attribute (typically
+    :class:`~tacex_gm.models.character.Character`).  Lookups elsewhere can
+    rely on this helper instead of reaching into the model directly.
+    """
+    arts = getattr(character, "arts", None)
+    if not isinstance(arts, list):
+        return []
+    return [str(a) for a in arts]
+
+
+def caster_knows_art(character: object, art_name: str) -> bool:
+    """True iff the character has learned *art_name* (Phase 8)."""
+    return art_name in known_arts(character)
+
+
+def validate_caster(
+    character: object,
+    art: ArtDefinition,
+) -> str | None:
+    """Aggregate prerequisite check for casting *art*.
+
+    Validates, in order:
+    1. The caster has the art in their known list (multi-art mastery).
+    2. The caster has the 祓魔の心得 skill (基礎前提, spec §6-5).
+    3. The caster has 祓魔術ランク (jutsu) ≥ 1.
+    4. The caster has enough MP.
+
+    Returns the first failing reason as a Japanese error message, or None
+    if all checks pass.
+    """
+    if not caster_knows_art(character, art.name):
+        return f"術者は '{art.name}' を修得していません"
+
+    skills = getattr(character, "skills", []) or []
+    if "祓魔の心得" not in skills:
+        return "術者は『祓魔の心得』を持っていません"
+
+    jutsu = getattr(character, "jutsu", 0) or 0
+    if jutsu < 1:
+        return "術者の祓魔術ランクが不足しています"
+
+    current_mp = getattr(character, "mp", 0) or 0
+    if current_mp < art.mp_cost:
+        return f"MPが不足しています（必要 {art.mp_cost}, 現在 {current_mp}）"
+
+    return None
