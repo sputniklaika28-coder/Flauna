@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field, model_validator
 
-Faction = Literal["pc", "enemy", "neutral"]
+Faction = Literal["pc", "ally_npc", "enemy", "neutral"]
 FirstMoveMode = Literal["normal", "tactical_maneuver", "attack_focus"]
 
 

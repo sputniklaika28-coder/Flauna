@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
+from .assessment import SessionScore
 from .character import Character
 from .event import GameEvent, TurnSummary
 from .pending import DeathAvoidanceRequest, EvasionRequest
@@ -101,6 +102,9 @@ class GameState(BaseModel):
     archived_event_count: int = 0
 
     scenario: Scenario
+
+    # Phase 7: set when combat ends and the assessment phase begins
+    assessment_result: SessionScore | None = None
 
     def find_character(self, character_id: str) -> Character | None:
         return next((c for c in self.characters if c.id == character_id), None)
