@@ -869,9 +869,7 @@ async def _run_npc_turn(
                 f"{da_target.name}は形代{_KATASHIRO_COST}枚を消費してリスポーン地点に転移した！"
                 f"（HP: {da_target.hp}/{da_target.max_hp}）"
             )
-            await _emit_event(
-                session, state, "character_respawned", {"character_id": da_target.id}
-            )
+            await _emit_event(session, state, "character_respawned", {"character_id": da_target.id})
         else:
             # accept_death or insufficient katashiro — apply damage.
             new_target = apply_damage(da_target, da_dmg)
@@ -886,9 +884,7 @@ async def _run_npc_turn(
             )
             if not new_target.is_alive:
                 narrative_parts.append(f"{da_target.name}は倒れた！")
-                await _emit_event(
-                    session, state, "character_died", {"character_id": da_target.id}
-                )
+                await _emit_event(session, state, "character_died", {"character_id": da_target.id})
 
         state = state.model_copy(
             update={
