@@ -1,0 +1,78 @@
+# 祓魔術定義 (Phase 5, GM spec §6-5)
+# 各祓魔術の名称・MP消費・効果説明・対象種別を定義する。
+# target_type: none / single / area / self
+
+arts:
+  - name: 加護防壁
+    mp_cost: 2
+    target_type: single
+    description: |
+      味方1体を霊的な護りで包む。対象キャラクターは次のラウンド開始まで
+      受けるダメージを1点軽減する（armor_valueを一時的に+1）。
+    effect:
+      type: temp_armor
+      value: 1
+      duration_rounds: 1
+
+  - name: 反閃歩法
+    mp_cost: 2
+    target_type: self
+    description: |
+      術者本人が瞬間移動に近い回避機動を習得する。
+      このラウンド中、術者は次の回避判定で追加ダイス+1を得る。
+    effect:
+      type: temp_evasion_bonus
+      value: 1
+      duration_rounds: 1
+
+  - name: 霊力放出
+    mp_cost: 3
+    target_type: area
+    description: |
+      術者を中心とした半径2マスに霊力を爆発的に放出する。
+      範囲内の敵キャラクターは難易度NORMAL（4）で体判定を行い、
+      失敗した場合は「スタン」状態（1ラウンド）を受ける。
+    effect:
+      type: stun_area
+      radius: 2
+      stun_duration_rounds: 1
+      resist_attribute: tai
+      resist_difficulty: NORMAL
+
+  - name: 霊弾発射
+    mp_cost: 2
+    target_type: single
+    description: |
+      霊力を凝縮した弾を1体の敵に発射する。
+      命中判定（霊 vs 難易度NORMAL）に成功すれば1d6点の霊的ダメージを与える。
+      装甲を無視する（armor_valueを貫通）。
+    effect:
+      type: ranged_spirit_damage
+      damage_dice: 1d6
+      ignores_armor: true
+      attack_attribute: rei
+      attack_difficulty: NORMAL
+
+  - name: 呪祝詛詞
+    mp_cost: 3
+    target_type: single
+    description: |
+      呪いの言葉を敵1体に放つ。対象は次のラウンド中、行動判定の難易度が
+      1段階上昇する（EASYはNORMALに、NORMALはHARDに）。
+    effect:
+      type: curse_difficulty_up
+      difficulty_shift: 1
+      duration_rounds: 1
+
+  - name: 式神使役
+    mp_cost: 4
+    target_type: none
+    description: |
+      術者が式神を1体召喚する。式神は術者の巧÷2（切り上げ）の機動力を持ち、
+      ターン中に術者と別個に移動できる。式神は攻撃を行えないが、隣接した
+      敵に「圧力」を与えてその攻撃判定を1段階難化させる（1ラウンド維持）。
+      MPが尽きた場合または術者が行動不能になった場合、即時消滅する。
+    effect:
+      type: summon_shikigami
+      pressure_difficulty_shift: 1
+      duration_rounds: 1
