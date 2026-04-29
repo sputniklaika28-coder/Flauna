@@ -1,4 +1,4 @@
-"""WebSocket handler — Phase 4 combat loop (GM spec §7-6, §8, §10-1, §10-2).
+"""WebSocket handler — Phase 6 combat loop (GM spec §7-6, §8, §10-1, §10-2, §10-3).
 
 Phase 3 additions:
   - 攻撃集中 (attack_focus): no first move, attack difficulty −1
@@ -11,16 +11,22 @@ Phase 4 additions:
   - 形代システム: death avoidance when damage > current HP × 2 (§10-2, D34)
   - リスポーン: HP half-restore, status clear, move to respawn_point (D36)
 
+Phase 6 additions:
+  - 複数プレイヤー: per-player message queues; broadcast state to all connections
+  - ハードモード: CombatPressure tracking, escalation on consecutive 0-damage rounds
+  - トリガー拡張: round_reached and character_dies scenario trigger evaluation
+
 Flow per turn:
-  PC turn  → wait for submit_turn_action → resolve attack (NPC auto-evades)
-           → apply damage → narrate → advance
-  NPC turn → select_default_action → resolve attack → send evade_required
-           → wait for submit_evasion → check death avoidance → apply damage
-           → narrate → advance
+  PC turn  → wait for submit_turn_action (own queue) → resolve attack (NPC auto-evades)
+           → apply damage → narrate → broadcast → advance
+  NPC turn → select_default_action → resolve attack → send evade_required to target PC
+           → wait for submit_evasion (target queue) → check death avoidance → apply damage
+           → narrate → broadcast → advance
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import datetime
 import json
@@ -42,6 +48,11 @@ from tacex_gm.engine.combat import (
 from tacex_gm.engine.default_actions import select_default_action
 from tacex_gm.engine.dice import PythonDiceEngine
 from tacex_gm.engine.npc_evasion import npc_decide_evasion_dice
+from tacex_gm.engine.pressure import accumulate_pressure, advance_pressure_round
+from tacex_gm.engine.scenario_triggers import (
+    events_for_round,
+    mark_event_fired,
+)
 from tacex_gm.engine.session_builder import build_initial_state
 from tacex_gm.engine.victory import check_combat_outcome
 from tacex_gm.errors import CloseCode, ErrorCode
@@ -57,6 +68,7 @@ from tacex_gm.models import (
 from tacex_gm.models.constants import DIFFICULTY_NORMAL, MeleeStyle, RangedStyle
 from tacex_gm.models.event import TurnSummary
 from tacex_gm.models.pending import DeathAvoidanceRequest, EvasionRequest, IncomingAttack
+from tacex_gm.models.scenario import ActionShowNarrative, ActionSpawnEnemy
 from tacex_gm.models.turn_action import PegAttack
 from tacex_gm.room.session import RoomSession, RoomStore
 from tacex_gm.scenario.loader import load_scenario
@@ -179,9 +191,21 @@ async def _run_session(
     )
     await websocket.send_text(restore.model_dump_json())
 
-    # 6. Run the combat loop (WebSocketDisconnect exits cleanly).
-    with contextlib.suppress(WebSocketDisconnect):
-        await _combat_loop(websocket, session, player_id)
+    # 6. Phase 6: register this connection + start per-player message pump.
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    session.message_queues[player_id] = queue
+    session.add_connection(player_id, websocket)
+
+    pump_task = asyncio.create_task(_message_pump(websocket, queue))
+    try:
+        with contextlib.suppress(WebSocketDisconnect):
+            await _combat_loop(websocket, session, player_id, queue)
+    finally:
+        pump_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await pump_task
+        session.remove_connection(player_id)
+        session.message_queues.pop(player_id, None)
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +217,7 @@ async def _combat_loop(
     websocket: WebSocket,
     session: RoomSession,
     player_id: str,
+    queue: asyncio.Queue[str],
 ) -> None:
     state = session.state
     assert state is not None
@@ -200,12 +225,15 @@ async def _combat_loop(
     dice = PythonDiceEngine(seed=state.seed)
 
     while True:
+        state = session.state
+        assert state is not None
+
         # Check for combat end before each turn.
         outcome = check_combat_outcome(state)
         if outcome is not None:
-            await _emit_event(websocket, state, "combat_ended", {"outcome": outcome})
+            await _broadcast_event(session, state, "combat_ended", {"outcome": outcome})
             narrative = _render_combat_end(session, outcome)
-            await _send_narrative(websocket, state, narrative)
+            await _broadcast_narrative(session, state, narrative)
             break
 
         actor = state.current_actor()
@@ -213,13 +241,13 @@ async def _combat_loop(
             break
 
         if actor.faction == "pc":
-            await _run_pc_turn(websocket, session, player_id, dice)
+            if actor.player_id == player_id:
+                await _run_pc_turn(websocket, session, player_id, queue, dice)
+            else:
+                # Another player's turn — wait for state to advance.
+                await _wait_for_turn_advance(session, state.version)
         else:
             await _run_npc_turn(websocket, session, player_id, dice)
-
-        # Refresh state reference (may have been replaced by model_copy).
-        state = session.state
-        assert state is not None
 
 
 # ---------------------------------------------------------------------------
@@ -231,12 +259,13 @@ async def _run_pc_turn(
     websocket: WebSocket,
     session: RoomSession,
     player_id: str,
+    queue: asyncio.Queue[str],
     dice: PythonDiceEngine,
 ) -> None:
-    # Wait for player's action. Re-raise disconnect so the loop exits cleanly.
+    # Wait for player's action from their dedicated message queue.
     try:
-        raw = await websocket.receive_text()
-    except (WebSocketDisconnect, RuntimeError) as exc:
+        raw = await queue.get()
+    except (asyncio.CancelledError, RuntimeError) as exc:
         raise WebSocketDisconnect() from exc
     msg = _parse_client_message(raw)
 
@@ -433,7 +462,7 @@ async def _run_pc_turn(
                     if not new_target.is_alive:
                         narrative_parts.append(f"{target.name}は倒れた！")
                         await _emit_event(
-                            websocket, state, "character_died", {"character_id": target.id}
+                            session, state, "character_died", {"character_id": target.id}
                         )
                     target = new_target
 
@@ -453,18 +482,18 @@ async def _run_pc_turn(
         session.state = state
 
         # Emit state_update.
-        await _send_state_update(websocket, state)
-        await _emit_event(websocket, state, "turn_ended", {"actor_id": actor.id})
+        await _send_state_update(session, state)
+        await _emit_event(session, state, "turn_ended", {"actor_id": actor.id})
 
         # Narrate.
         narrative = "\n".join(narrative_parts) if narrative_parts else f"{actor.name}は行動した。"
-        await _send_narrative(websocket, state, narrative)
+        await _send_narrative(session, state, narrative)
 
         # Advance turn.
-        state = _advance_turn(state)
+        state = await _advance_turn_with_checks(session, state)
         state = state.model_copy(update={"machine_state": MachineState.IDLE})
         session.state = state
-        await _send_state_update(websocket, state)
+        await _send_state_update(session, state)
 
 
 # ---------------------------------------------------------------------------
@@ -478,12 +507,20 @@ async def _run_npc_turn(
     player_id: str,
     dice: PythonDiceEngine,
 ) -> None:
+    # Phase 6: guard against multiple connections racing to run the same NPC turn.
+    pre_version = session.state.version if session.state else -1
+
     async with session.lock.acquire():
         state = session.state
         assert state is not None
 
+        # If state changed while we were waiting for the lock, another connection
+        # already processed this turn — skip it.
+        if state.version != pre_version:
+            return
+
         actor = state.current_actor()
-        if actor is None:
+        if actor is None or actor.faction == "pc":
             return
 
         state = state.model_copy(update={"machine_state": MachineState.RESOLVING_ACTION})
@@ -530,7 +567,7 @@ async def _run_npc_turn(
         if turn_action.first_move is not None:
             state = state.model_copy(update={"version": state.version + 1})
             session.state = state
-            await _send_state_update(websocket, state)
+            await _send_state_update(session, state)
 
         # Resolve main_action.
         evasion_request: EvasionRequest | None = None
@@ -540,9 +577,9 @@ async def _run_npc_turn(
             attack = turn_action.main_action
             weapon = session.weapon_catalog.get(attack.weapon_id)
             if weapon is None:
+                state = await _advance_turn_with_checks(session, state)
                 state = state.model_copy(update={"machine_state": MachineState.IDLE})
                 session.state = state
-                _advance_turn(state)
                 return
 
             targets = [state.find_character(tid) for tid in attack.targets]
@@ -571,10 +608,13 @@ async def _run_npc_turn(
                     continue
 
                 pending_id = str(uuid.uuid4())
+                # Phase 6: use the target character's actual player_id, not the
+                # current connection's player_id.
+                target_player_id = target.player_id or player_id
                 evasion_request = EvasionRequest.with_default_deadline(
                     pending_id=pending_id,
                     target_character_id=target.id,
-                    target_player_id=player_id,
+                    target_player_id=target_player_id,
                     incoming_attacks=hits,
                     max_evasion_dice=target.evasion_dice,
                 )
@@ -594,23 +634,25 @@ async def _run_npc_turn(
                 update={"version": state.version + 1, "machine_state": MachineState.NARRATING}
             )
             session.state = state
-            await _send_state_update(websocket, state)
-            await _emit_event(websocket, state, "turn_ended", {"actor_id": actor.id})
+            await _send_state_update(session, state)
+            await _emit_event(session, state, "turn_ended", {"actor_id": actor.id})
             narrative = (
                 "\n".join(narrative_parts) if narrative_parts else f"{actor.name}は行動した。"
             )
-            await _send_narrative(websocket, state, narrative)
-            state = _advance_turn(state)
+            await _send_narrative(session, state, narrative)
+            state = await _advance_turn_with_checks(session, state)
             state = state.model_copy(update={"machine_state": MachineState.IDLE})
             session.state = state
-            await _send_state_update(websocket, state)
+            await _send_state_update(session, state)
             return
 
     # --- Outside the lock: send evade_required and wait for response. ---
     assert evasion_request is not None
 
+    # Phase 6: route to the target player's WebSocket if available.
+    target_ws = session.connections.get(evasion_request.target_player_id or player_id, websocket)
     await _send_ws(
-        websocket,
+        target_ws,
         EvadeRequired(
             type="evade_required",
             event_id=state.next_event_id,
@@ -622,7 +664,11 @@ async def _run_npc_turn(
         ),
     )
 
-    evasion_msg = await _wait_for_evasion(websocket, evasion_request.pending_id)
+    # Phase 6: wait on the target player's message queue.
+    target_queue = session.message_queues.get(evasion_request.target_player_id or player_id)
+    evasion_msg = await _wait_for_evasion_from_queue(
+        target_queue, evasion_request.pending_id, websocket
+    )
 
     # Phase 4: may be filled when a hit triggers death avoidance.
     death_avoidance_context: dict[str, Any] = {}
@@ -648,7 +694,7 @@ async def _run_npc_turn(
 
         evade_target = state.find_character(evasion_request.target_character_id)
         if evade_target is None:
-            state = _advance_turn(state)
+            state = await _advance_turn_with_checks(session, state)
             state = state.model_copy(update={"machine_state": MachineState.IDLE})
             session.state = state
             return
@@ -723,7 +769,7 @@ async def _run_npc_turn(
                 if not new_target.is_alive:
                     narrative_parts.append(f"{evade_target.name}は倒れた！")
                     await _emit_event(
-                        websocket, state, "character_died", {"character_id": evade_target.id}
+                        session, state, "character_died", {"character_id": evade_target.id}
                     )
                 evade_target = new_target
 
@@ -736,18 +782,18 @@ async def _run_npc_turn(
                 }
             )
             session.state = state
-            await _send_state_update(websocket, state)
-            await _emit_event(websocket, state, "turn_ended", {"actor_id": actor_char.id})
+            await _send_state_update(session, state)
+            await _emit_event(session, state, "turn_ended", {"actor_id": actor_char.id})
 
             narrative = (
                 "\n".join(narrative_parts) if narrative_parts else f"{actor_char.name}は行動した。"
             )
-            await _send_narrative(websocket, state, narrative)
+            await _send_narrative(session, state, narrative)
 
-            state = _advance_turn(state)
+            state = await _advance_turn_with_checks(session, state)
             state = state.model_copy(update={"machine_state": MachineState.IDLE})
             session.state = state
-            await _send_state_update(websocket, state)
+            await _send_state_update(session, state)
 
     # ---------------------------------------------------------------------------
     # Phase 4: Death avoidance flow — outside the lock.
@@ -761,8 +807,10 @@ async def _run_npc_turn(
     da_weapon = death_avoidance_context["weapon"]
     da_target_id: str = death_avoidance_context["target_id"]
 
+    # Phase 6: route to the target player's WebSocket.
+    da_target_ws = session.connections.get(da_request.target_player_id, websocket)
     await _send_ws(
-        websocket,
+        da_target_ws,
         DeathAvoidanceRequired(
             type="death_avoidance_required",
             event_id=state.next_event_id,
@@ -778,7 +826,8 @@ async def _run_npc_turn(
         ),
     )
 
-    da_msg = await _wait_for_death_avoidance(websocket, da_request.pending_id)
+    da_queue = session.message_queues.get(da_request.target_player_id)
+    da_msg = await _wait_for_death_avoidance_from_queue(da_queue, da_request.pending_id, websocket)
     choice = da_msg.choice if da_msg is not None else "accept_death"
 
     async with session.lock.acquire():
@@ -797,7 +846,7 @@ async def _run_npc_turn(
 
         da_target = state.find_character(da_target_id)
         if da_target is None:
-            state = _advance_turn(state)
+            state = await _advance_turn_with_checks(session, state)
             state = state.model_copy(update={"machine_state": MachineState.IDLE})
             session.state = state
             return
@@ -820,9 +869,7 @@ async def _run_npc_turn(
                 f"{da_target.name}は形代{_KATASHIRO_COST}枚を消費してリスポーン地点に転移した！"
                 f"（HP: {da_target.hp}/{da_target.max_hp}）"
             )
-            await _emit_event(
-                websocket, state, "character_respawned", {"character_id": da_target.id}
-            )
+            await _emit_event(session, state, "character_respawned", {"character_id": da_target.id})
         else:
             # accept_death or insufficient katashiro — apply damage.
             new_target = apply_damage(da_target, da_dmg)
@@ -837,9 +884,7 @@ async def _run_npc_turn(
             )
             if not new_target.is_alive:
                 narrative_parts.append(f"{da_target.name}は倒れた！")
-                await _emit_event(
-                    websocket, state, "character_died", {"character_id": da_target.id}
-                )
+                await _emit_event(session, state, "character_died", {"character_id": da_target.id})
 
         state = state.model_copy(
             update={
@@ -849,18 +894,18 @@ async def _run_npc_turn(
             }
         )
         session.state = state
-        await _send_state_update(websocket, state)
-        await _emit_event(websocket, state, "turn_ended", {"actor_id": da_actor.id})
+        await _send_state_update(session, state)
+        await _emit_event(session, state, "turn_ended", {"actor_id": da_actor.id})
 
         narrative = (
             "\n".join(narrative_parts) if narrative_parts else f"{da_actor.name}は行動した。"
         )
-        await _send_narrative(websocket, state, narrative)
+        await _send_narrative(session, state, narrative)
 
-        state = _advance_turn(state)
+        state = await _advance_turn_with_checks(session, state)
         state = state.model_copy(update={"machine_state": MachineState.IDLE})
         session.state = state
-        await _send_state_update(websocket, state)
+        await _send_state_update(session, state)
 
 
 # ---------------------------------------------------------------------------
@@ -869,12 +914,62 @@ async def _run_npc_turn(
 
 
 async def _wait_for_evasion(websocket: WebSocket, pending_id: str) -> SubmitEvasion | None:
-    """Wait for the matching submit_evasion; re-raises WebSocketDisconnect."""
-    raw = await websocket.receive_text()  # raises WebSocketDisconnect on close
+    """Wait for the matching submit_evasion from a WebSocket (legacy, single-player)."""
+    raw = await websocket.receive_text()
     msg = _parse_client_message(raw)
     if isinstance(msg, SubmitEvasion) and msg.pending_id == pending_id:
         return msg
     return None
+
+
+async def _wait_for_evasion_from_queue(
+    queue: asyncio.Queue[str] | None,
+    pending_id: str,
+    fallback_websocket: WebSocket,
+    timeout: float = 60.0,
+) -> SubmitEvasion | None:
+    """Phase 6: wait for submit_evasion from a player's message queue.
+
+    Falls back to ``fallback_websocket`` when the queue is None (solo mode).
+    """
+    if queue is None:
+        return await _wait_for_evasion(fallback_websocket, pending_id)
+    try:
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            remaining = max(0.0, deadline - asyncio.get_event_loop().time())
+            raw = await asyncio.wait_for(queue.get(), timeout=remaining)
+            msg = _parse_client_message(raw)
+            if isinstance(msg, SubmitEvasion) and msg.pending_id == pending_id:
+                return msg
+            # Non-matching message — put back and try again (shouldn't normally happen).
+            await queue.put(raw)
+            await asyncio.sleep(0)
+    except TimeoutError:
+        return None
+
+
+async def _wait_for_death_avoidance_from_queue(
+    queue: asyncio.Queue[str] | None,
+    pending_id: str,
+    fallback_websocket: WebSocket,
+    timeout: float = 60.0,
+) -> SubmitDeathAvoidance | None:
+    """Phase 6: wait for submit_death_avoidance from a player's message queue."""
+    if queue is None:
+        return await _wait_for_death_avoidance(fallback_websocket, pending_id)
+    try:
+        deadline = asyncio.get_event_loop().time() + timeout
+        while True:
+            remaining = max(0.0, deadline - asyncio.get_event_loop().time())
+            raw = await asyncio.wait_for(queue.get(), timeout=remaining)
+            msg = _parse_client_message(raw)
+            if isinstance(msg, SubmitDeathAvoidance) and msg.pending_id == pending_id:
+                return msg
+            await queue.put(raw)
+            await asyncio.sleep(0)
+    except TimeoutError:
+        return None
 
 
 def _apply_movement(state: GameState, char_id: str, movement: Movement) -> GameState:
@@ -918,6 +1013,110 @@ def _advance_turn(state: GameState) -> GameState:
     return state.model_copy(update={"current_turn_index": new_idx, "round_number": new_round})
 
 
+async def _advance_turn_with_checks(
+    session: RoomSession,
+    state: GameState,
+) -> GameState:
+    """Advance turn index, update CombatPressure, and fire scenario triggers.
+
+    Reads ``state.current_turn_summary`` for pressure accumulation.
+    Returns the new GameState after all updates have been applied and broadcast.
+    """
+    actor = state.current_actor()
+    actor_is_boss = actor.is_boss if actor else False
+    target_is_boss = {c.id: c.is_boss for c in state.characters}
+    target_is_pc = {c.id: (c.faction == "pc") for c in state.characters}
+
+    # Phase 6: accumulate pressure from this turn's damage summary.
+    summary = state.current_turn_summary
+    pressure = state.combat_pressure
+    if summary is not None:
+        pressure = accumulate_pressure(
+            pressure,
+            summary,
+            actor_is_boss=actor_is_boss,
+            target_is_boss=target_is_boss,
+            target_is_pc=target_is_pc,
+        )
+
+    prev_round = state.round_number
+    state = _advance_turn(state)
+    new_round = state.round_number
+
+    if new_round != prev_round:
+        # Round boundary: evaluate pressure escalation.
+        pressure, escalated = advance_pressure_round(pressure)
+        if escalated:
+            state = state.model_copy(update={"combat_pressure": pressure})
+            session.state = state
+            await _emit_event(
+                session,
+                state,
+                "combat_pressure_escalated",
+                {"level": pressure.level},
+            )
+            await _send_narrative(
+                session,
+                state,
+                f"戦況が緊迫してきた！（難易度: {pressure.level}）",
+            )
+        else:
+            state = state.model_copy(update={"combat_pressure": pressure})
+
+        # Phase 6: fire round_reached triggers.
+        triggered = events_for_round(state, new_round)
+        for ev in triggered:
+            state = await _fire_scenario_event(session, state, ev)
+    else:
+        state = state.model_copy(update={"combat_pressure": pressure})
+
+    session.state = state
+    return state
+
+
+async def _fire_scenario_event(
+    session: RoomSession,
+    state: GameState,
+    event: Any,
+) -> GameState:
+    """Execute a scenario event's actions and mark it fired."""
+
+    state = mark_event_fired(state, event.id)
+    session.state = state
+
+    for action in event.actions:
+        if isinstance(action, ActionShowNarrative):
+            await _send_narrative(session, state, action.text)
+        elif isinstance(action, ActionSpawnEnemy):
+            state = _spawn_enemies(session, state, action)
+            session.state = state
+            await _send_state_update(session, state)
+
+    return state
+
+
+def _spawn_enemies(
+    session: RoomSession,
+    state: GameState,
+    action: ActionSpawnEnemy,
+) -> GameState:
+    """Add enemies from a spawn_enemy scenario action."""
+    from tacex_gm.engine.session_builder import build_character_from_template
+
+    new_chars = list(state.characters)
+    for i in range(action.count):
+        template = session.enemy_catalog.get(action.template)
+        if template is None:
+            logger.warning("spawn_enemy: unknown template '%s'", action.template)
+            continue
+        pos = action.positions[i] if i < len(action.positions) else (0, 0)
+        char_id = f"{action.template}_{len(new_chars)}"
+        char = build_character_from_template(template, char_id=char_id, position=pos)
+        new_chars.append(char)
+
+    return state.model_copy(update={"characters": new_chars})
+
+
 def _now() -> str:
     return datetime.datetime.now(datetime.UTC).isoformat()
 
@@ -928,7 +1127,7 @@ def _next_event_id(state: GameState) -> tuple[int, GameState]:
 
 
 async def _emit_event(
-    websocket: WebSocket, state: GameState, event_name: str, payload: dict[str, Any]
+    session: RoomSession, state: GameState, event_name: str, payload: dict[str, Any]
 ) -> None:
     eid, _ = _next_event_id(state)
     msg = GameEventMessage(
@@ -938,10 +1137,14 @@ async def _emit_event(
         event_name=event_name,
         payload=payload,
     )
-    await _send_ws(websocket, msg)
+    await session.broadcast(msg.model_dump_json())
 
 
-async def _send_state_update(websocket: WebSocket, state: GameState) -> None:
+# Aliases kept for call sites that still name these functions explicitly.
+_broadcast_event = _emit_event
+
+
+async def _send_state_update(session: RoomSession, state: GameState) -> None:
     msg = StateFull(
         type="state_full",
         event_id=state.next_event_id,
@@ -949,10 +1152,14 @@ async def _send_state_update(websocket: WebSocket, state: GameState) -> None:
         version=state.version,
         state=state.model_dump(mode="json"),
     )
-    await _send_ws(websocket, msg)
+    await session.broadcast(msg.model_dump_json())
+    session.notify_state_changed()
 
 
-async def _send_narrative(websocket: WebSocket, state: GameState, text: str) -> None:
+_broadcast_state_update = _send_state_update
+
+
+async def _send_narrative(session: RoomSession, state: GameState, text: str) -> None:
     eid, _ = _next_event_id(state)
     msg = GmNarrative(
         type="gm_narrative",
@@ -960,7 +1167,10 @@ async def _send_narrative(websocket: WebSocket, state: GameState, text: str) -> 
         timestamp=_now(),
         text=text,
     )
-    await _send_ws(websocket, msg)
+    await session.broadcast(msg.model_dump_json())
+
+
+_broadcast_narrative = _send_narrative
 
 
 async def _send_error(websocket: WebSocket, code: ErrorCode, message: str) -> None:
@@ -1086,3 +1296,31 @@ async def _wait_for_death_avoidance(
     if isinstance(msg, SubmitDeathAvoidance) and msg.pending_id == pending_id:
         return msg
     return None
+
+
+# ---------------------------------------------------------------------------
+# Phase 6: Message pump and multi-player helpers
+# ---------------------------------------------------------------------------
+
+
+async def _message_pump(websocket: WebSocket, queue: asyncio.Queue[str]) -> None:
+    """Read messages from a WebSocket and put them into the player's queue."""
+    try:
+        while True:
+            raw = await websocket.receive_text()
+            await queue.put(raw)
+    except (WebSocketDisconnect, RuntimeError, asyncio.CancelledError):
+        pass
+
+
+async def _wait_for_turn_advance(session: RoomSession, current_version: int) -> None:
+    """Block until session.state.version advances past current_version.
+
+    Used when it is another player's PC turn; this connection simply polls
+    with a short sleep until state progresses.
+    """
+    while True:
+        state = session.state
+        if state is None or state.version > current_version:
+            return
+        await asyncio.sleep(0.1)

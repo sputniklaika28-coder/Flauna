@@ -1,22 +1,28 @@
-"""RoomStore — process-local in-memory room registry (Phase 2).
+"""RoomStore — process-local in-memory room registry (Phase 2+).
 
-Holds per-room metadata and lazily-initialised :class:`GameState` objects.
-The state is built the first time a player establishes a WebSocket connection
-(``join_room`` message) so that we can embed the connecting player's
-information directly into the initial character roster.
+Phase 6 addition: ``connections`` dict and ``broadcast`` / ``state_changed``
+event for multi-player support.  Each player WebSocket registers itself on
+connect; state-change notifications are sent to all connected clients.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from tacex_gm.ai.backend import LLMBackend
 from tacex_gm.ai.narration_engine import NarrationTemplateEngine
 from tacex_gm.models import GameState, Weapon
 from tacex_gm.room.lock import RoomLock, RoomLockRegistry
 from tacex_gm.ws.idempotency import IdempotencyCache
+
+if TYPE_CHECKING:
+    pass
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -45,8 +51,21 @@ class RoomSession:
     # player_id → PlayerSlot
     player_slots: dict[str, PlayerSlot] = field(default_factory=dict)
 
+    # Phase 6: player_id → active WebSocket (multi-player broadcast).
+    connections: dict[str, Any] = field(default_factory=dict)
+
+    # Phase 6: player_id → asyncio.Queue for incoming WS messages.
+    message_queues: dict[str, Any] = field(default_factory=dict)
+
+    # Fires whenever session.state is replaced so waiting coroutines wake up.
+    state_changed: asyncio.Event = field(default_factory=asyncio.Event)
+
     # Guard so only one coroutine initialises the state.
     _init_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+    # ---------------------------------------------------------------------------
+    # Player / character management
+    # ---------------------------------------------------------------------------
 
     def register_player(self, player_id: str, player_name: str) -> None:
         """Record a player who has called POST /rooms/{id}/join."""
@@ -65,6 +84,31 @@ class RoomSession:
         slot = self.player_slots.get(player_id)
         if slot is not None:
             slot.character_id = character_id
+
+    # ---------------------------------------------------------------------------
+    # Phase 6: multi-player connection management
+    # ---------------------------------------------------------------------------
+
+    def add_connection(self, player_id: str, websocket: Any) -> None:
+        """Register an active WebSocket for ``player_id``."""
+        self.connections[player_id] = websocket
+
+    def remove_connection(self, player_id: str) -> None:
+        """Deregister the WebSocket for ``player_id``."""
+        self.connections.pop(player_id, None)
+
+    def notify_state_changed(self) -> None:
+        """Signal all waiting coroutines that state has been updated."""
+        self.state_changed.set()
+        self.state_changed.clear()
+
+    async def broadcast(self, json_text: str, exclude_player_id: str | None = None) -> None:
+        """Send ``json_text`` to every connected player except ``exclude_player_id``."""
+        for pid, ws in list(self.connections.items()):
+            if pid == exclude_player_id:
+                continue
+            with contextlib.suppress(Exception):
+                await ws.send_text(json_text)
 
 
 class RoomStore:

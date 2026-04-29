@@ -17,6 +17,7 @@ from .pending import (
     EvasionRequest,
     IncomingAttack,
 )
+from .pressure import CombatPressure, PressureLevel
 from .scenario import (
     ActionShowNarrative,
     ActionSpawnEnemy,
@@ -30,6 +31,7 @@ from .scenario import (
     Trigger,
     TriggerCharacterDies,
     TriggerEnterZone,
+    TriggerObjectDestroyed,
     TriggerRoundReached,
     VictoryAllEnemiesDefeated,
     VictoryCondition,
@@ -57,6 +59,8 @@ __all__ = [
     "DIFFICULTY_TABLE",
     "SKILL_REQUIREMENTS",
     "AbilityBonus",
+    "CombatPressure",
+    "PressureLevel",
     "ActionShowNarrative",
     "ActionSpawnEnemy",
     "AdditionalStyle",
@@ -95,6 +99,7 @@ __all__ = [
     "Trigger",
     "TriggerCharacterDies",
     "TriggerEnterZone",
+    "TriggerObjectDestroyed",
     "TriggerRoundReached",
     "TurnAction",
     "TurnSummary",
