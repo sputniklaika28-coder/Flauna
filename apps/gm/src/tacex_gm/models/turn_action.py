@@ -10,6 +10,9 @@ from .constants import AdditionalStyle, MeleeStyle, RangedStyle
 
 Coordinate = tuple[int, int]
 
+ArtName = Literal["加護防壁", "反閃歩法", "霊力放出", "霊弾発射", "呪祝詛詞", "式神使役"]
+BarrierEffect = Literal["barrier_wall", "armor_dissolve", "evasion_block", "attack_opportunity"]
+
 
 class Movement(BaseModel):
     path: list[Coordinate] = Field(default_factory=list)
@@ -59,9 +62,43 @@ class PegAttack(_AttackBase):
     style: RangedStyle = RangedStyle.NONE
 
 
+class CastArt(BaseModel):
+    """祓魔術の発動 (Phase 5, §5-2)."""
+
+    type: Literal["cast_art"] = "cast_art"
+    art_name: ArtName
+    target: str | None = None
+    center_position: Coordinate | None = None
+    options: dict[str, str | int | bool] = Field(default_factory=dict)
+
+
+class DeployWire(BaseModel):
+    """注連鋼縄の展開 — connects two pillars (Phase 5, §5-2)."""
+
+    type: Literal["deploy_wire"] = "deploy_wire"
+    pillar_id: str
+
+
+class DispelBarrier(BaseModel):
+    """結界の解除 (Phase 5, §5-2)."""
+
+    type: Literal["dispel_barrier"] = "dispel_barrier"
+    barrier_id: str
+
+
+class UseItem(BaseModel):
+    """アイテム使用 (Phase 5, §5-2)."""
+
+    type: Literal["use_item"] = "use_item"
+    item_name: str
+    target: str | None = None
+    center_position: Coordinate | None = None
+
+
 class OtherAction(BaseModel):
     type: Literal["other_action"] = "other_action"
     description: str
+    target_object_id: str | None = None
 
 
 class Skip(BaseModel):
@@ -70,7 +107,43 @@ class Skip(BaseModel):
 
 
 MainAction = Annotated[
-    MeleeAttack | RangedAttack | PegAttack | OtherAction | Skip,
+    MeleeAttack
+    | RangedAttack
+    | PegAttack
+    | CastArt
+    | DeployWire
+    | DispelBarrier
+    | UseItem
+    | OtherAction
+    | Skip,
+    Field(discriminator="type"),
+]
+
+
+# Sub-actions executed after the main action (Phase 5+)
+class PlacePillar(BaseModel):
+    """祓串を設置する (Phase 5 sub-action)."""
+
+    type: Literal["place_pillar"] = "place_pillar"
+    position: Coordinate
+
+
+class ActivateBarrier(BaseModel):
+    """結界を起動する — wire two pillars and assign an effect (Phase 5 sub-action)."""
+
+    type: Literal["activate_barrier"] = "activate_barrier"
+    pillar_id: str
+    effect: BarrierEffect
+
+
+class ConsumeKatashiroForMP(BaseModel):
+    """形代を消費してMP回復する (Phase 5 sub-action)."""
+
+    type: Literal["consume_katashiro_mp"] = "consume_katashiro_mp"
+
+
+SubAction = Annotated[
+    PlacePillar | ActivateBarrier | ConsumeKatashiroForMP,
     Field(discriminator="type"),
 ]
 
@@ -82,4 +155,4 @@ class TurnAction(BaseModel):
     first_move: Movement | None = None
     main_action: MainAction
     second_move: Movement | None = None
-    sub_actions: list[dict[str, str]] = Field(default_factory=list)
+    sub_actions: list[SubAction] = Field(default_factory=list)

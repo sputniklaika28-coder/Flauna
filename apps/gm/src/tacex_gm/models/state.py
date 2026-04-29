@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,45 @@ from .scenario import Scenario
 
 Coordinate = tuple[int, int]
 PendingAction = EvasionRequest | DeathAvoidanceRequest
+
+BarrierEffect = Literal["barrier_wall", "armor_dissolve", "evasion_block", "attack_opportunity"]
+
+
+class Pillar(BaseModel):
+    """祓串 (§6-5, Phase 5)."""
+
+    id: str
+    owner_id: str
+    position: Coordinate
+    is_active: bool = True
+
+
+class Wire(BaseModel):
+    """注連鋼縄 — connects two pillars (§6-5, Phase 5)."""
+
+    id: str
+    pillar_a_id: str
+    pillar_b_id: str
+
+
+class Barrier(BaseModel):
+    """結界 — activated from a wire (§6-5, Phase 5)."""
+
+    id: str
+    wire_id: str
+    effect: BarrierEffect
+    owner_id: str
+    is_active: bool = True
+
+
+class MapObject(BaseModel):
+    """Destructible map object (§6-5, Phase 5)."""
+
+    id: str
+    position: Coordinate
+    strength: int = Field(ge=0)
+    armor: int = Field(default=0, ge=0)
+    label: str = ""
 
 
 class MachineState(StrEnum):
@@ -44,6 +83,12 @@ class GameState(BaseModel):
     map_size: tuple[int, int]
     obstacles: list[Coordinate] = Field(default_factory=list)
 
+    # Phase 5 map entities
+    pillars: list[Pillar] = Field(default_factory=list)
+    wires: list[Wire] = Field(default_factory=list)
+    barriers: list[Annotated[Barrier, Field()]] = Field(default_factory=list)
+    objects: list[MapObject] = Field(default_factory=list)
+
     current_turn_summary: TurnSummary | None = None
     pending_actions: list[PendingAction] = Field(default_factory=list)
 
@@ -61,3 +106,12 @@ class GameState(BaseModel):
             return None
         idx = self.current_turn_index % len(self.turn_order)
         return self.find_character(self.turn_order[idx])
+
+    def find_pillar(self, pillar_id: str) -> Pillar | None:
+        return next((p for p in self.pillars if p.id == pillar_id), None)
+
+    def find_barrier(self, barrier_id: str) -> Barrier | None:
+        return next((b for b in self.barriers if b.id == barrier_id), None)
+
+    def find_wire(self, wire_id: str) -> Wire | None:
+        return next((w for w in self.wires if w.id == wire_id), None)
