@@ -1,7 +1,8 @@
-"""Scenario trigger evaluation (GM spec §14-4, Phase 6).
+"""Scenario trigger evaluation (GM spec §14-4).
 
 Phase 2 supported: enter_zone, character_dies.
 Phase 6 adds:    round_reached, object_destroyed.
+Phase 7 adds:    hp_threshold, compound.
 
 All evaluators are pure functions that accept the current GameState and
 relevant context, returning a list of ScenarioEvent IDs that should fire.
@@ -12,8 +13,11 @@ from __future__ import annotations
 
 from tacex_gm.models.scenario import (
     ScenarioEvent,
+    Trigger,
     TriggerCharacterDies,
+    TriggerCompound,
     TriggerEnterZone,
+    TriggerHPThreshold,
     TriggerObjectDestroyed,
     TriggerRoundReached,
 )
@@ -68,6 +72,35 @@ def _matches_object_destroyed(
     destroyed_object_id: str,
 ) -> bool:
     return trigger.object_id == destroyed_object_id
+
+
+def _matches_hp_threshold(
+    trigger: TriggerHPThreshold,
+    state: GameState,
+) -> bool:
+    """True when the named character's HP fraction is at or below threshold_pct."""
+    char = state.find_character(trigger.character_id)
+    if char is None or char.max_hp == 0:
+        return False
+    return (char.hp / char.max_hp) <= trigger.threshold_pct
+
+
+def _matches_trigger(trigger: Trigger, state: GameState, context: dict) -> bool:  # type: ignore[type-arg]
+    """Dispatch to the appropriate matcher, including compound logic."""
+    if isinstance(trigger, TriggerEnterZone):
+        return _matches_enter_zone(trigger, state, context.get("character_id", ""))
+    if isinstance(trigger, TriggerCharacterDies):
+        return _matches_character_dies(trigger, context.get("character_id", ""))
+    if isinstance(trigger, TriggerRoundReached):
+        return _matches_round_reached(trigger, context.get("round_number", 0))
+    if isinstance(trigger, TriggerObjectDestroyed):
+        return _matches_object_destroyed(trigger, context.get("object_id", ""))
+    if isinstance(trigger, TriggerHPThreshold):
+        return _matches_hp_threshold(trigger, state)
+    if isinstance(trigger, TriggerCompound):
+        results = [_matches_trigger(c, state, context) for c in trigger.conditions]
+        return all(results) if trigger.op == "and" else any(results)
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +168,33 @@ def events_for_object_destroyed(
         if isinstance(ev.trigger, TriggerObjectDestroyed) and _matches_object_destroyed(
             ev.trigger, destroyed_object_id
         ):
+            result.append(ev)
+    return result
+
+
+def events_for_hp_threshold(
+    state: GameState,
+) -> list[ScenarioEvent]:
+    """Return matching unfired hp_threshold events given current state (Phase 7)."""
+    result = []
+    for ev in state.scenario.events:
+        if ev.fired and ev.once:
+            continue
+        if isinstance(ev.trigger, TriggerHPThreshold) and _matches_hp_threshold(ev.trigger, state):
+            result.append(ev)
+    return result
+
+
+def events_for_compound(
+    state: GameState,
+    context: dict,  # type: ignore[type-arg]
+) -> list[ScenarioEvent]:
+    """Return matching unfired compound events (Phase 7)."""
+    result = []
+    for ev in state.scenario.events:
+        if ev.fired and ev.once:
+            continue
+        if isinstance(ev.trigger, TriggerCompound) and _matches_trigger(ev.trigger, state, context):
             result.append(ev)
     return result
 
