@@ -21,6 +21,7 @@ export default function Header() {
     (c) => c.player_id === myPlayerId && c.faction === "pc",
   );
   const katashiro = myPc?.inventory["katashiro"] ?? null;
+  const showMp = !!myPc && myPc.max_mp > 0;
 
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white text-sm">
@@ -33,6 +34,21 @@ export default function Header() {
             <span className="text-gray-400">
               {phaseKey ? t(phaseKey) : ""}
             </span>
+            {showMp && myPc && (
+              <span
+                className="text-purple-300"
+                title={t("room.hud.mpLabel", {
+                  current: myPc.mp,
+                  max: myPc.max_mp,
+                })}
+                data-testid="hud-mp"
+              >
+                {t("room.hud.mpLabel", {
+                  current: myPc.mp,
+                  max: myPc.max_mp,
+                })}
+              </span>
+            )}
             {katashiro !== null && (
               <span
                 className="text-amber-300"

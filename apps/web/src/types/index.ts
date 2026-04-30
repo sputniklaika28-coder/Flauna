@@ -114,6 +114,28 @@ export interface EvasionPending {
 
 export type DeathAvoidanceChoice = "avoid_death" | "respawn" | "accept_death";
 
+export type ArtName =
+  | "加護防壁"
+  | "反閃歩法"
+  | "霊力放出"
+  | "霊弾発射"
+  | "呪祝詛詞"
+  | "式神使役";
+export type ArtTargetType = "none" | "single" | "area" | "self";
+
+export interface ArtMeta {
+  name: ArtName;
+  mp_cost: number;
+  target_type: ArtTargetType;
+  description: string;
+}
+
+export interface CastArtPayload {
+  art_name: ArtName;
+  target?: string;
+  center_position?: [number, number];
+}
+
 export interface DeathAvoidancePending {
   pending_id: string;
   target_character_id: string;
