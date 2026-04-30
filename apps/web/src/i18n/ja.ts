@@ -115,6 +115,9 @@ const ja = {
   "settings.language": "言語",
   "settings.language.ja": "日本語",
   "settings.language.en": "English",
+  "settings.audio.mute": "音をミュート",
+  "settings.audio.unmute": "ミュートを解除",
+  "settings.audio.volume": "音量",
 } as const;
 
 export default ja;
