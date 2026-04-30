@@ -26,6 +26,8 @@ import {
   setAudioBackend,
 } from "../../src/services/audio";
 import AudioSettings from "../../src/components/common/AudioSettings";
+import { usePhaseBgm } from "../../src/hooks/usePhaseBgm";
+import type { GamePhase } from "../../src/types";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -173,5 +175,82 @@ describe("Phase 9 web: AudioSettings component", () => {
       "audio-volume-slider",
     ) as HTMLInputElement;
     expect(slider.disabled).toBe(true);
+  });
+});
+
+describe("Phase 9 web: usePhaseBgm hook", () => {
+  function PhaseHarness({ phase }: { phase: GamePhase | undefined }) {
+    usePhaseBgm(phase);
+    return null;
+  }
+
+  beforeEach(() => {
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+  });
+
+  it("plays combat BGM when phase is combat", () => {
+    const playBgmSpy = vi.fn();
+    const stopBgmSpy = vi.fn();
+    setAudioBackend({
+      playSe: vi.fn(),
+      playBgm: playBgmSpy,
+      stopBgm: stopBgmSpy,
+    });
+    render(React.createElement(PhaseHarness, { phase: "combat" }));
+    expect(playBgmSpy).toHaveBeenCalledWith("combat", 0.6);
+  });
+
+  it("plays exploration BGM when phase is briefing or exploration", () => {
+    const playBgmSpy = vi.fn();
+    setAudioBackend({
+      playSe: vi.fn(),
+      playBgm: playBgmSpy,
+      stopBgm: vi.fn(),
+    });
+    const { rerender } = render(
+      React.createElement(PhaseHarness, { phase: "briefing" }),
+    );
+    expect(playBgmSpy).toHaveBeenLastCalledWith("exploration", 0.6);
+    rerender(React.createElement(PhaseHarness, { phase: "exploration" }));
+    expect(playBgmSpy).toHaveBeenLastCalledWith("exploration", 0.6);
+  });
+
+  it("stops BGM when phase becomes assessment", () => {
+    const stopBgmSpy = vi.fn();
+    setAudioBackend({
+      playSe: vi.fn(),
+      playBgm: vi.fn(),
+      stopBgm: stopBgmSpy,
+    });
+    render(React.createElement(PhaseHarness, { phase: "assessment" }));
+    expect(stopBgmSpy).toHaveBeenCalled();
+  });
+
+  it("stops BGM on unmount", () => {
+    const stopBgmSpy = vi.fn();
+    setAudioBackend({
+      playSe: vi.fn(),
+      playBgm: vi.fn(),
+      stopBgm: stopBgmSpy,
+    });
+    const { unmount } = render(
+      React.createElement(PhaseHarness, { phase: "combat" }),
+    );
+    stopBgmSpy.mockClear();
+    unmount();
+    expect(stopBgmSpy).toHaveBeenCalled();
+  });
+
+  it("is a no-op when phase is undefined", () => {
+    const playBgmSpy = vi.fn();
+    const stopBgmSpy = vi.fn();
+    setAudioBackend({
+      playSe: vi.fn(),
+      playBgm: playBgmSpy,
+      stopBgm: stopBgmSpy,
+    });
+    render(React.createElement(PhaseHarness, { phase: undefined }));
+    expect(playBgmSpy).not.toHaveBeenCalled();
+    expect(stopBgmSpy).not.toHaveBeenCalled();
   });
 });
