@@ -13,8 +13,20 @@ import { Header, SideMenu } from "../components/layout";
 import { ChatPanel } from "../components/chat";
 import { GameMap, ContextMenu } from "../components/map";
 import { QuickActionBar, ActionDetailModal } from "../components/action";
-import { EvasionDialog, CombatResultModal, DeathAvoidanceDialog } from "../components/dialogs";
-import type { GameState, EvasionPending, DeathAvoidancePending, DeathAvoidanceChoice } from "../types";
+import {
+  EvasionDialog,
+  CombatResultModal,
+  DeathAvoidanceDialog,
+  CastArtModal,
+  CastArtCutscene,
+} from "../components/dialogs";
+import type {
+  GameState,
+  EvasionPending,
+  DeathAvoidancePending,
+  DeathAvoidanceChoice,
+  CastArtPayload,
+} from "../types";
 import type { ServerMessage } from "@flauna/ws-schema";
 
 export default function Room() {
@@ -31,7 +43,14 @@ export default function Room() {
     lastSeenEventId,
   } = useGameStore();
   const { addEntry, updateLastNarrative } = useChatStore();
-  const { openContextMenu, openActionDetail, addDamageEvent, setCombatResult } = useUIStore();
+  const {
+    openContextMenu,
+    openActionDetail,
+    openCastArt,
+    triggerCastArtCutscene,
+    addDamageEvent,
+    setCombatResult,
+  } = useUIStore();
   const { setEvasionRequest, setDeathAvoidanceRequest } = usePendingStore();
 
   // Track previous HP values to detect damage for popups
@@ -100,6 +119,22 @@ export default function Room() {
               setCombatResult(outcome);
               addEntry("system", outcome === "victory" ? "戦闘終了: 勝利！" : "戦闘終了: 敗北…");
             }
+          } else if (msg.event_name === "art_cast") {
+            const p = msg.payload as {
+              art_name?: string;
+              caster_id?: string;
+            };
+            if (p.art_name && p.caster_id) {
+              const caster = useGameStore
+                .getState()
+                .gameState?.characters.find((c) => c.id === p.caster_id);
+              triggerCastArtCutscene({
+                id: nanoid(),
+                artName: p.art_name,
+                casterName: caster?.name ?? p.caster_id,
+              });
+              addEntry("system", `『${p.art_name}』が放たれた！`);
+            }
           } else {
             addEntry("system", `[${msg.event_name}]`);
           }
@@ -158,6 +193,7 @@ export default function Room() {
       setLastSeenEventId,
       addDamageEvent,
       setCombatResult,
+      triggerCastArtCutscene,
     ],
   );
 
@@ -332,6 +368,48 @@ export default function Room() {
     [gameState, myPlayerId, sendWs],
   );
 
+  const handleOpenCastArt = useCallback(
+    (targetId: string | null) => {
+      openCastArt(targetId);
+    },
+    [openCastArt],
+  );
+
+  const handleSubmitCastArt = useCallback(
+    (payload: CastArtPayload) => {
+      if (!gameState || !myPlayerId) return;
+      const myChar = gameState.characters.find(
+        (c) => c.player_id === myPlayerId,
+      );
+      if (!myChar) return;
+      sendWs({
+        action: "submit_turn_action",
+        player_id: myPlayerId,
+        room_id: gameState.room_id,
+        client_request_id: nanoid(),
+        expected_version: gameState.version,
+        turn_action: {
+          actor_id: myChar.id,
+          main_action: {
+            type: "cast_art",
+            art_name: payload.art_name,
+            ...(payload.target ? { target: payload.target } : {}),
+            ...(payload.center_position
+              ? { center_position: payload.center_position }
+              : {}),
+          },
+        },
+      });
+      triggerCastArtCutscene({
+        id: nanoid(),
+        artName: payload.art_name,
+        casterName: myChar.name,
+      });
+      addEntry("system", `『${payload.art_name}』を発動！`);
+    },
+    [gameState, myPlayerId, sendWs, triggerCastArtCutscene, addEntry],
+  );
+
   const handleCharRightClick = useCallback(
     (charId: string, pos: { x: number; y: number }) => {
       openContextMenu(charId, pos);
@@ -354,8 +432,14 @@ export default function Room() {
         <ChatPanel onSendStatement={handleSendStatement} />
       </div>
 
-      <ContextMenu onAttack={handleAttack} onDetailAttack={handleDetailAttack} />
+      <ContextMenu
+        onAttack={handleAttack}
+        onDetailAttack={handleDetailAttack}
+        onCastArt={handleOpenCastArt}
+      />
       <ActionDetailModal onSubmit={handleDetailAttackSubmit} />
+      <CastArtModal onSubmit={handleSubmitCastArt} />
+      <CastArtCutscene />
       <EvasionDialog onSubmit={handleSubmitEvasion} />
       <DeathAvoidanceDialog onSubmit={handleSubmitDeathAvoidance} />
       <CombatResultModal onBackToLobby={() => navigate("/")} />
