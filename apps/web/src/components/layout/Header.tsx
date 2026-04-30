@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useGameStore } from "../../stores";
+import { LanguageSwitcher } from "../common";
 
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: "bg-green-500",
@@ -72,6 +73,7 @@ export default function Header() {
             ? t("room.connected")
             : t("room.connecting")}
         </span>
+        <LanguageSwitcher />
       </div>
     </header>
   );

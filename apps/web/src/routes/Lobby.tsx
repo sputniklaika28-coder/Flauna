@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createRoom } from "../services/api";
+import { LanguageSwitcher } from "../components/common";
 
 export default function Lobby() {
   const { t } = useTranslation();
@@ -18,9 +19,14 @@ export default function Lobby() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-8 p-8">
-      <h1 className="text-3xl font-bold">{t("app.name")}</h1>
-      <h2 className="text-xl">{t("lobby.title")}</h2>
+    <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-4 sm:p-8">
+      <div className="absolute top-3 right-3">
+        <LanguageSwitcher className="flex items-center gap-1 text-xs text-gray-700" />
+      </div>
+      <h1 className="text-2xl sm:text-3xl font-bold text-center">
+        {t("app.name")}
+      </h1>
+      <h2 className="text-lg sm:text-xl">{t("lobby.title")}</h2>
 
       <form onSubmit={handleCreate} className="flex flex-col gap-4 w-full max-w-sm">
         <label className="flex flex-col gap-1">

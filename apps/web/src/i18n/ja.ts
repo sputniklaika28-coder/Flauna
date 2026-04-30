@@ -112,6 +112,9 @@ const ja = {
   "room.assessment.gradeLabel.B": "B — 及第点",
   "room.assessment.gradeLabel.C": "C — 辛勝",
   "room.assessment.gradeLabel.D": "D — 撤退",
+  "settings.language": "言語",
+  "settings.language.ja": "日本語",
+  "settings.language.en": "English",
 } as const;
 
 export default ja;
