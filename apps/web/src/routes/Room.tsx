@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { TacexWebSocket } from "../services/websocket";
 import { joinRoom } from "../services/api";
 import { playSe } from "../services/audio";
+import { usePhaseBgm } from "../hooks/usePhaseBgm";
 import {
   useGameStore,
   useChatStore,
@@ -254,6 +255,8 @@ export default function Room() {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  usePhaseBgm(gameState?.phase);
 
   const sendWs = useCallback((payload: unknown) => {
     wsRef.current?.send(payload);
