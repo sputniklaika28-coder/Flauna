@@ -50,6 +50,41 @@ export interface Character {
   first_move_mode: FirstMoveMode | null;
 }
 
+export type BarrierEffect =
+  | "barrier_wall"
+  | "armor_dissolve"
+  | "evasion_block"
+  | "attack_opportunity";
+
+export interface Pillar {
+  id: string;
+  owner_id: string;
+  position: [number, number];
+  is_active: boolean;
+}
+
+export interface Wire {
+  id: string;
+  pillar_a_id: string;
+  pillar_b_id: string;
+}
+
+export interface Barrier {
+  id: string;
+  wire_id: string;
+  effect: BarrierEffect;
+  owner_id: string;
+  is_active: boolean;
+}
+
+export interface MapObject {
+  id: string;
+  position: [number, number];
+  strength: number;
+  armor: number;
+  label: string;
+}
+
 export interface GameState {
   room_id: string;
   version: number;
@@ -62,6 +97,10 @@ export interface GameState {
   characters: Character[];
   map_size: [number, number];
   obstacles: [number, number][];
+  pillars?: Pillar[];
+  wires?: Wire[];
+  barriers?: Barrier[];
+  objects?: MapObject[];
   current_turn_summary: unknown | null;
   pending_actions: unknown[];
 }
