@@ -1,6 +1,18 @@
 import { useTranslation } from "react-i18next";
 import { useGameStore } from "../../stores";
-import type { Character } from "../../types";
+import type { Character, PressureLevel } from "../../types";
+
+const PRESSURE_BG: Record<PressureLevel, string> = {
+  normal: "bg-gray-800 border-gray-700",
+  hard: "bg-orange-900/40 border-orange-500",
+  ultra_hard: "bg-red-900/50 border-red-500",
+};
+
+const PRESSURE_TEXT: Record<PressureLevel, string> = {
+  normal: "text-gray-300",
+  hard: "text-orange-300",
+  ultra_hard: "text-red-300",
+};
 
 function ResourceBar({
   current,
@@ -122,6 +134,35 @@ export default function SideMenu() {
               );
             })}
           </ol>
+        </div>
+      )}
+
+      {gameState.combat_pressure && (
+        <div
+          data-testid="hard-mode-panel"
+          className={`mt-3 p-2 rounded border text-xs ${
+            PRESSURE_BG[gameState.combat_pressure.level]
+          }`}
+        >
+          <div className="text-gray-500 uppercase tracking-wide mb-1">
+            {t("room.hardMode.title")}
+          </div>
+          <div
+            data-testid="hard-mode-level"
+            className={`font-semibold mb-1 ${
+              PRESSURE_TEXT[gameState.combat_pressure.level]
+            }`}
+          >
+            {t(`room.hardMode.level.${gameState.combat_pressure.level}`)}
+          </div>
+          <div
+            data-testid="hard-mode-zero-rounds"
+            className="text-gray-400"
+          >
+            {t("room.hardMode.zeroRounds", {
+              n: gameState.combat_pressure.zero_damage_rounds,
+            })}
+          </div>
         </div>
       )}
     </aside>
