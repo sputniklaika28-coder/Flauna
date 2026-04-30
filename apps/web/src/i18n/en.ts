@@ -112,6 +112,9 @@ const en = {
   "room.assessment.gradeLabel.B": "B — Passing",
   "room.assessment.gradeLabel.C": "C — Narrow",
   "room.assessment.gradeLabel.D": "D — Failure",
+  "settings.language": "Language",
+  "settings.language.ja": "日本語",
+  "settings.language.en": "English",
 } as const;
 
 export default en;
