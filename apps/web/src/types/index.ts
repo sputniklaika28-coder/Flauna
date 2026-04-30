@@ -94,6 +94,27 @@ export interface CombatPressure {
   boss_to_pc_damage: number;
 }
 
+export type Grade = "S" | "A" | "B" | "C" | "D";
+export type SessionOutcome = "victory" | "defeat";
+
+export interface SessionScore {
+  outcome: SessionOutcome;
+  rounds_taken: number;
+  pcs_alive: number;
+  pcs_total: number;
+  enemies_defeated: number;
+  enemies_total: number;
+  grade: Grade;
+}
+
+export type GrowthType = "skill" | "art";
+
+export interface GrowthProposal {
+  character_id: string;
+  grow_type: GrowthType;
+  name: string;
+}
+
 export interface GameState {
   room_id: string;
   version: number;
@@ -111,6 +132,7 @@ export interface GameState {
   barriers?: Barrier[];
   objects?: MapObject[];
   combat_pressure?: CombatPressure;
+  assessment_result?: SessionScore | null;
   current_turn_summary: unknown | null;
   pending_actions: unknown[];
 }

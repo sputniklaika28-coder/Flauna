@@ -3,3 +3,4 @@ export { default as CombatResultModal } from "./CombatResultModal";
 export { default as DeathAvoidanceDialog } from "./DeathAvoidanceDialog";
 export { default as CastArtModal } from "./CastArtModal";
 export { default as CastArtCutscene } from "./CastArtCutscene";
+export { default as AssessmentScreen } from "./AssessmentScreen";

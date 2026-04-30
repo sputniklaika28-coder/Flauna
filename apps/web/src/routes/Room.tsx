@@ -20,6 +20,7 @@ import {
   DeathAvoidanceDialog,
   CastArtModal,
   CastArtCutscene,
+  AssessmentScreen,
 } from "../components/dialogs";
 import type {
   GameState,
@@ -455,6 +456,7 @@ export default function Room() {
       <EvasionDialog onSubmit={handleSubmitEvasion} />
       <DeathAvoidanceDialog onSubmit={handleSubmitDeathAvoidance} />
       <CombatResultModal onBackToLobby={() => navigate("/")} />
+      <AssessmentScreen onBackToLobby={() => navigate("/")} />
     </div>
   );
 }
