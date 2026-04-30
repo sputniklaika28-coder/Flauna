@@ -85,6 +85,15 @@ export interface MapObject {
   label: string;
 }
 
+export type PressureLevel = "normal" | "hard" | "ultra_hard";
+
+export interface CombatPressure {
+  level: PressureLevel;
+  zero_damage_rounds: number;
+  pc_to_boss_damage: number;
+  boss_to_pc_damage: number;
+}
+
 export interface GameState {
   room_id: string;
   version: number;
@@ -101,6 +110,7 @@ export interface GameState {
   wires?: Wire[];
   barriers?: Barrier[];
   objects?: MapObject[];
+  combat_pressure?: CombatPressure;
   current_turn_summary: unknown | null;
   pending_actions: unknown[];
 }

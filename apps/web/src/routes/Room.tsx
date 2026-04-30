@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { nanoid } from "nanoid";
 import { TacexWebSocket } from "../services/websocket";
 import { joinRoom } from "../services/api";
@@ -32,6 +33,7 @@ import type { ServerMessage } from "@flauna/ws-schema";
 export default function Room() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const {
     gameState,
@@ -119,6 +121,15 @@ export default function Room() {
               setCombatResult(outcome);
               addEntry("system", outcome === "victory" ? "戦闘終了: 勝利！" : "戦闘終了: 敗北…");
             }
+          } else if (msg.event_name === "combat_pressure_escalated") {
+            const lvl = (msg.payload as { level?: string }).level ?? "hard";
+            const localized = t(`room.hardMode.level.${lvl}`, {
+              defaultValue: lvl,
+            });
+            addEntry(
+              "system",
+              t("room.hardMode.escalated", { level: localized }),
+            );
           } else if (msg.event_name === "art_cast") {
             const p = msg.payload as {
               art_name?: string;
@@ -194,6 +205,7 @@ export default function Room() {
       addDamageEvent,
       setCombatResult,
       triggerCastArtCutscene,
+      t,
     ],
   );
 
