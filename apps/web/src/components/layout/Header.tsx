@@ -11,11 +11,16 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function Header() {
   const { t } = useTranslation();
-  const { gameState, connectionStatus } = useGameStore();
+  const { gameState, connectionStatus, myPlayerId } = useGameStore();
 
   const phaseKey = gameState
     ? (`room.phase.${gameState.phase}` as const)
     : null;
+
+  const myPc = gameState?.characters.find(
+    (c) => c.player_id === myPlayerId && c.faction === "pc",
+  );
+  const katashiro = myPc?.inventory["katashiro"] ?? null;
 
   return (
     <header className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white text-sm">
@@ -28,6 +33,15 @@ export default function Header() {
             <span className="text-gray-400">
               {phaseKey ? t(phaseKey) : ""}
             </span>
+            {katashiro !== null && (
+              <span
+                className="text-amber-300"
+                title={t("room.hud.katashiro")}
+                data-testid="hud-katashiro"
+              >
+                {t("room.hud.katashiroLabel", { n: katashiro })}
+              </span>
+            )}
             <span className="text-gray-500 font-mono text-xs">
               {gameState.room_id}
             </span>

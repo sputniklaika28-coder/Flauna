@@ -1,6 +1,12 @@
 import { Stage, Layer, Rect, Line, Circle, Text, Group } from "react-konva";
 import { useGameStore, useUIStore } from "../../stores";
-import type { Character } from "../../types";
+import type {
+  BarrierEffect,
+  Character,
+  MapObject,
+  Pillar,
+  Wire,
+} from "../../types";
 import DamagePopups from "./DamagePopup";
 
 const FACTION_COLORS: Record<string, string> = {
@@ -86,6 +92,128 @@ function CharToken({
   );
 }
 
+const BARRIER_COLORS: Record<BarrierEffect, string> = {
+  barrier_wall: "#a78bfa",
+  armor_dissolve: "#f97316",
+  evasion_block: "#ef4444",
+  attack_opportunity: "#22d3ee",
+};
+
+function PillarMark({
+  pillar,
+  cellSize,
+}: {
+  pillar: Pillar;
+  cellSize: number;
+}) {
+  const [px, py] = pillar.position;
+  const x = px * cellSize + cellSize / 2;
+  const y = py * cellSize + cellSize / 2;
+  const r = cellSize * 0.18;
+  const color = pillar.is_active ? "#c4b5fd" : "#6b7280";
+  return (
+    <Group x={x} y={y}>
+      <Rect
+        x={-r}
+        y={-r}
+        width={r * 2}
+        height={r * 2}
+        rotation={45}
+        fill={color}
+        stroke="#1e1b4b"
+        strokeWidth={1}
+      />
+    </Group>
+  );
+}
+
+function WireLine({
+  wire,
+  pillars,
+  cellSize,
+  barrierEffect,
+}: {
+  wire: Wire;
+  pillars: Pillar[];
+  cellSize: number;
+  barrierEffect: BarrierEffect | null;
+}) {
+  const a = pillars.find((p) => p.id === wire.pillar_a_id);
+  const b = pillars.find((p) => p.id === wire.pillar_b_id);
+  if (!a || !b) return null;
+  const [ax, ay] = a.position;
+  const [bx, by] = b.position;
+  const x1 = ax * cellSize + cellSize / 2;
+  const y1 = ay * cellSize + cellSize / 2;
+  const x2 = bx * cellSize + cellSize / 2;
+  const y2 = by * cellSize + cellSize / 2;
+  if (barrierEffect) {
+    const color = BARRIER_COLORS[barrierEffect];
+    return (
+      <>
+        <Line
+          points={[x1, y1, x2, y2]}
+          stroke={color}
+          strokeWidth={Math.max(6, cellSize * 0.2)}
+          opacity={0.35}
+          lineCap="round"
+        />
+        <Line
+          points={[x1, y1, x2, y2]}
+          stroke={color}
+          strokeWidth={1.5}
+          opacity={0.9}
+        />
+      </>
+    );
+  }
+  return (
+    <Line
+      points={[x1, y1, x2, y2]}
+      stroke="#9ca3af"
+      strokeWidth={1}
+      dash={[4, 4]}
+      opacity={0.6}
+    />
+  );
+}
+
+function ObjectMark({
+  obj,
+  cellSize,
+}: {
+  obj: MapObject;
+  cellSize: number;
+}) {
+  const [ox, oy] = obj.position;
+  const inset = 3;
+  return (
+    <Group>
+      <Rect
+        x={ox * cellSize + inset}
+        y={oy * cellSize + inset}
+        width={cellSize - inset * 2}
+        height={cellSize - inset * 2}
+        fill="#854d0e"
+        stroke="#fbbf24"
+        strokeWidth={1}
+        cornerRadius={2}
+      />
+      {obj.strength > 0 && (
+        <Text
+          x={ox * cellSize}
+          y={oy * cellSize + cellSize - inset - 10}
+          width={cellSize}
+          align="center"
+          text={`◆${obj.strength}`}
+          fontSize={Math.max(8, cellSize * 0.22)}
+          fill="#fde68a"
+        />
+      )}
+    </Group>
+  );
+}
+
 interface Props {
   onCharRightClick: (charId: string, pos: { x: number; y: number }) => void;
 }
@@ -102,8 +230,17 @@ export default function GameMap({ onCharRightClick }: Props) {
     );
   }
 
-  const { map_size, characters, obstacles, turn_order, current_turn_index } =
-    gameState;
+  const {
+    map_size,
+    characters,
+    obstacles,
+    turn_order,
+    current_turn_index,
+    pillars = [],
+    wires = [],
+    barriers = [],
+    objects = [],
+  } = gameState;
   const [cols, rows] = map_size;
   const cellSize = mapZoom;
   const width = cols * cellSize;
@@ -156,6 +293,36 @@ export default function GameMap({ onCharRightClick }: Props) {
               height={cellSize - 2}
               fill="#4b5563"
               cornerRadius={2}
+            />
+          ))}
+
+          {/* destructible objects */}
+          {objects.map((obj) => (
+            <ObjectMark key={obj.id} obj={obj} cellSize={cellSize} />
+          ))}
+
+          {/* wires + barriers (drawn under pillars/characters) */}
+          {wires.map((wire) => {
+            const barrier = barriers.find(
+              (b) => b.wire_id === wire.id && b.is_active,
+            );
+            return (
+              <WireLine
+                key={wire.id}
+                wire={wire}
+                pillars={pillars}
+                cellSize={cellSize}
+                barrierEffect={barrier?.effect ?? null}
+              />
+            );
+          })}
+
+          {/* pillars */}
+          {pillars.map((pillar) => (
+            <PillarMark
+              key={pillar.id}
+              pillar={pillar}
+              cellSize={cellSize}
             />
           ))}
 
