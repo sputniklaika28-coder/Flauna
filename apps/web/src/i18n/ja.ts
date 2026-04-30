@@ -99,6 +99,19 @@ const ja = {
   "combat.victoryMsg": "全ての敵を倒した。任務完了だ。",
   "combat.defeatMsg": "全滅……。今回は退くしかない。",
   "combat.backToLobby": "ロビーへ戻る",
+  "room.assessment.title": "セッション査定",
+  "room.assessment.outcomeVictory": "任務達成",
+  "room.assessment.outcomeDefeat": "任務失敗",
+  "room.assessment.grade": "総合評価",
+  "room.assessment.rounds": "経過ラウンド",
+  "room.assessment.pcsAlive": "生存PC",
+  "room.assessment.enemiesDefeated": "撃破した敵",
+  "room.assessment.backToLobby": "ロビーへ戻る",
+  "room.assessment.gradeLabel.S": "S — 完璧",
+  "room.assessment.gradeLabel.A": "A — 上々",
+  "room.assessment.gradeLabel.B": "B — 及第点",
+  "room.assessment.gradeLabel.C": "C — 辛勝",
+  "room.assessment.gradeLabel.D": "D — 撤退",
 } as const;
 
 export default ja;

@@ -99,6 +99,19 @@ const en = {
   "combat.victoryMsg": "All enemies defeated. Mission complete.",
   "combat.defeatMsg": "Party wiped... We must retreat.",
   "combat.backToLobby": "Back to Lobby",
+  "room.assessment.title": "Session Assessment",
+  "room.assessment.outcomeVictory": "Mission Complete",
+  "room.assessment.outcomeDefeat": "Mission Failed",
+  "room.assessment.grade": "Final Grade",
+  "room.assessment.rounds": "Rounds Taken",
+  "room.assessment.pcsAlive": "PCs Surviving",
+  "room.assessment.enemiesDefeated": "Enemies Defeated",
+  "room.assessment.backToLobby": "Back to Lobby",
+  "room.assessment.gradeLabel.S": "S — Flawless",
+  "room.assessment.gradeLabel.A": "A — Strong",
+  "room.assessment.gradeLabel.B": "B — Passing",
+  "room.assessment.gradeLabel.C": "C — Narrow",
+  "room.assessment.gradeLabel.D": "D — Failure",
 } as const;
 
 export default en;
