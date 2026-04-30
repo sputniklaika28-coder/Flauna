@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { nanoid } from "nanoid";
 import { TacexWebSocket } from "../services/websocket";
 import { joinRoom } from "../services/api";
+import { playSe } from "../services/audio";
 import {
   useGameStore,
   useChatStore,
@@ -86,9 +87,11 @@ export default function Room() {
           const state = msg.state as unknown as GameState;
 
           // Detect HP decreases → emit damage popups
+          let anyDamage = false;
           state.characters.forEach((char) => {
             const prevHp = prevHpRef.current[char.id];
             if (prevHp !== undefined && char.hp < prevHp) {
+              anyDamage = true;
               addDamageEvent({
                 id: nanoid(),
                 charId: char.id,
@@ -98,6 +101,7 @@ export default function Room() {
               });
             }
           });
+          if (anyDamage) playSe("damage");
           // Update HP map
           const hpMap: Record<string, number> = {};
           state.characters.forEach((c) => { hpMap[c.id] = c.hp; });
@@ -120,9 +124,11 @@ export default function Room() {
             const outcome = (msg.payload as { outcome?: string }).outcome;
             if (outcome === "victory" || outcome === "defeat") {
               setCombatResult(outcome);
+              playSe(outcome);
               addEntry("system", outcome === "victory" ? "戦闘終了: 勝利！" : "戦闘終了: 敗北…");
             }
           } else if (msg.event_name === "combat_pressure_escalated") {
+            playSe("escalation");
             const lvl = (msg.payload as { level?: string }).level ?? "hard";
             const localized = t(`room.hardMode.level.${lvl}`, {
               defaultValue: lvl,
@@ -145,6 +151,7 @@ export default function Room() {
                 artName: p.art_name,
                 casterName: caster?.name ?? p.caster_id,
               });
+              playSe("cast_art");
               addEntry("system", `『${p.art_name}』が放たれた！`);
             }
           } else {

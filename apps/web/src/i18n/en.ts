@@ -115,6 +115,9 @@ const en = {
   "settings.language": "Language",
   "settings.language.ja": "日本語",
   "settings.language.en": "English",
+  "settings.audio.mute": "Mute audio",
+  "settings.audio.unmute": "Unmute audio",
+  "settings.audio.volume": "Volume",
 } as const;
 
 export default en;
