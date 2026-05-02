@@ -74,7 +74,11 @@ export default function Room() {
     addDamageEvent,
     setCombatResult,
   } = useUIStore();
-  const { setEvasionRequest, setDeathAvoidanceRequest } = usePendingStore();
+  const {
+    setEvasionRequest,
+    setDeathAvoidanceRequest,
+    setSubmittingTurnAction,
+  } = usePendingStore();
   const pushToast = useToastStore((s) => s.pushToast);
 
   // Track previous HP values to detect damage for popups
@@ -104,6 +108,9 @@ export default function Room() {
           break;
         }
         case "state_full": {
+          // Server confirmed a state advance — any in-flight submit_turn_action
+          // is now resolved (accepted or superseded), so drop the indicator.
+          setSubmittingTurnAction(false);
           const state = msg.state as unknown as GameState;
 
           // Detect HP decreases → emit damage popups
@@ -240,6 +247,9 @@ export default function Room() {
                 useGameStore.getState().gameState?.version,
               newRequestId: () => nanoid(),
             });
+            // On successful resubmit the action is still in flight; only drop
+            // the indicator when we give up.
+            if (!ok) setSubmittingTurnAction(false);
             pushToast({
               message: t(
                 ok
@@ -250,6 +260,8 @@ export default function Room() {
             });
             break;
           }
+          // Any other server-side error rejects the in-flight submission.
+          setSubmittingTurnAction(false);
           if (action.kind === "silent") break;
           const localized = messageForError(t, msg.code);
           pushToast({ message: localized, severity: action.severity });
@@ -269,6 +281,7 @@ export default function Room() {
       updateLastNarrative,
       setEvasionRequest,
       setDeathAvoidanceRequest,
+      setSubmittingTurnAction,
       setLastSeenEventId,
       addDamageEvent,
       setCombatResult,
@@ -337,6 +350,7 @@ export default function Room() {
     return () => {
       wsRef.current?.close();
       clearLastSubmit();
+      setSubmittingTurnAction(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
@@ -364,9 +378,10 @@ export default function Room() {
   const sendTurnAction = useCallback(
     (payload: TurnActionPayload) => {
       rememberSubmit(payload);
+      setSubmittingTurnAction(true);
       sendWs(payload);
     },
-    [sendWs],
+    [sendWs, setSubmittingTurnAction],
   );
 
   const handleEndTurn = useCallback(() => {

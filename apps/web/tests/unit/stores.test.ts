@@ -138,7 +138,10 @@ describe("useUIStore", () => {
 
 describe("usePendingStore", () => {
   beforeEach(() => {
-    usePendingStore.setState({ evasionRequest: null });
+    usePendingStore.setState({
+      evasionRequest: null,
+      submittingTurnAction: false,
+    });
   });
 
   it("setEvasionRequest stores and clears request", () => {
@@ -152,6 +155,14 @@ describe("usePendingStore", () => {
     expect(usePendingStore.getState().evasionRequest?.pending_id).toBe("p1");
     usePendingStore.getState().setEvasionRequest(null);
     expect(usePendingStore.getState().evasionRequest).toBeNull();
+  });
+
+  it("submittingTurnAction defaults to false and toggles via setter", () => {
+    expect(usePendingStore.getState().submittingTurnAction).toBe(false);
+    usePendingStore.getState().setSubmittingTurnAction(true);
+    expect(usePendingStore.getState().submittingTurnAction).toBe(true);
+    usePendingStore.getState().setSubmittingTurnAction(false);
+    expect(usePendingStore.getState().submittingTurnAction).toBe(false);
   });
 });
 
