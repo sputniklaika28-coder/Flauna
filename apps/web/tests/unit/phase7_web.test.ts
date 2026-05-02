@@ -6,7 +6,13 @@ import ja from "../../src/i18n/ja";
 import en from "../../src/i18n/en";
 import AssessmentScreen from "../../src/components/dialogs/AssessmentScreen";
 import { useGameStore } from "../../src/stores/gameStore";
-import type { GameState, Grade, SessionScore } from "../../src/types";
+import type {
+  Character,
+  GameState,
+  Grade,
+  GrowthProposal,
+  SessionScore,
+} from "../../src/types";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -46,6 +52,9 @@ describe("Phase 7 web: i18n keys", () => {
     "room.assessment.gradeLabel.B",
     "room.assessment.gradeLabel.C",
     "room.assessment.gradeLabel.D",
+    "room.assessment.growthTitle",
+    "room.assessment.growthType.skill",
+    "room.assessment.growthType.art",
   ] as const;
 
   it("ja and en define every Phase 7 assessment key", () => {
@@ -138,6 +147,81 @@ describe("Phase 7 web: AssessmentScreen rendering", () => {
     render(React.createElement(AssessmentScreen, { onBackToLobby: () => {} }));
     expect(screen.getByText(/任務失敗/)).toBeTruthy();
     expect(screen.getByTestId("assessment-grade").textContent).toBe("D");
+  });
+
+  it("renders growth proposals belonging to the local player", () => {
+    const score: SessionScore = {
+      outcome: "victory",
+      rounds_taken: 3,
+      pcs_alive: 1,
+      pcs_total: 1,
+      enemies_defeated: 1,
+      enemies_total: 1,
+      grade: "S",
+    };
+    const myChar: Character = {
+      id: "pc1",
+      name: "シノ",
+      player_id: "p1",
+      faction: "pc",
+      is_boss: false,
+      tai: 5,
+      rei: 5,
+      kou: 5,
+      jutsu: 1,
+      max_hp: 20,
+      max_mp: 4,
+      hp: 20,
+      mp: 4,
+      mobility: 4,
+      evasion_dice: 3,
+      max_evasion_dice: 3,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+    const otherChar: Character = { ...myChar, id: "pc2", player_id: "p2" };
+    const proposals: GrowthProposal[] = [
+      { character_id: "pc1", grow_type: "skill", name: "回避強化" },
+      { character_id: "pc1", grow_type: "art", name: "加護防壁" },
+      { character_id: "pc2", grow_type: "skill", name: "踏み込み" },
+    ];
+    const state = makeState(score);
+    state.characters = [myChar, otherChar];
+    state.growth_proposals = proposals;
+    useGameStore.setState({ gameState: state, myPlayerId: "p1" });
+    render(React.createElement(AssessmentScreen, { onBackToLobby: () => {} }));
+
+    const items = screen.getAllByTestId("growth-proposal-item");
+    expect(items).toHaveLength(2);
+    expect(screen.getByText("回避強化")).toBeTruthy();
+    expect(screen.getByText("加護防壁")).toBeTruthy();
+    expect(screen.queryByText("踏み込み")).toBeNull();
+  });
+
+  it("hides the growth panel when no proposals are present", () => {
+    const score: SessionScore = {
+      outcome: "defeat",
+      rounds_taken: 9,
+      pcs_alive: 0,
+      pcs_total: 1,
+      enemies_defeated: 0,
+      enemies_total: 1,
+      grade: "D",
+    };
+    const state = makeState(score);
+    state.growth_proposals = [];
+    useGameStore.setState({ gameState: state, myPlayerId: "p1" });
+    render(React.createElement(AssessmentScreen, { onBackToLobby: () => {} }));
+    expect(screen.queryByTestId("growth-proposals")).toBeNull();
   });
 
   it("triggers onBackToLobby when the button is clicked", () => {

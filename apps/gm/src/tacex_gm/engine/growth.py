@@ -6,14 +6,10 @@ Growth proposals are derived from session performance (grade).
 
 from __future__ import annotations
 
-from typing import Literal
-
-from pydantic import BaseModel
-
-from tacex_gm.models.assessment import SessionScore
+from tacex_gm.models.assessment import GrowthProposal, GrowthType, SessionScore
 from tacex_gm.models.character import Character
 
-GrowthType = Literal["skill", "art"]
+__all__ = ["GrowthProposal", "GrowthType", "apply_growth", "propose_growth"]
 
 # Skills/arts available as growth rewards, keyed by minimum grade.
 _SKILL_POOL_BY_GRADE: dict[str, list[str]] = {
@@ -44,14 +40,6 @@ def _pool_for_grade(grade: str, pool_map: dict[str, list[str]]) -> list[str]:
             if item not in result:
                 result.append(item)
     return result
-
-
-class GrowthProposal(BaseModel):
-    """A suggested growth award for one character."""
-
-    character_id: str
-    grow_type: GrowthType
-    name: str
 
 
 def propose_growth(

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useGameStore } from "../../stores";
-import type { Grade, SessionScore } from "../../types";
+import type { Grade, GrowthProposal, SessionScore } from "../../types";
 
 interface Props {
   onBackToLobby: () => void;
@@ -25,7 +25,7 @@ function StatRow({ label, value }: { label: string; value: string | number }) {
 
 export default function AssessmentScreen({ onBackToLobby }: Props) {
   const { t } = useTranslation();
-  const { gameState } = useGameStore();
+  const { gameState, myPlayerId } = useGameStore();
 
   if (!gameState || gameState.phase !== "assessment") return null;
   const score: SessionScore | null | undefined = gameState.assessment_result;
@@ -33,6 +33,18 @@ export default function AssessmentScreen({ onBackToLobby }: Props) {
 
   const isVictory = score.outcome === "victory";
   const gradeColor = GRADE_COLOR[score.grade];
+
+  const myCharIds = new Set(
+    gameState.characters
+      .filter((c) => c.player_id === myPlayerId)
+      .map((c) => c.id),
+  );
+  const myProposals: GrowthProposal[] = (gameState.growth_proposals ?? []).filter(
+    (p) => myCharIds.has(p.character_id),
+  );
+  const charNameById = new Map(
+    gameState.characters.map((c) => [c.id, c.name] as const),
+  );
 
   return (
     <div
@@ -82,6 +94,42 @@ export default function AssessmentScreen({ onBackToLobby }: Props) {
             value={t(`room.assessment.gradeLabel.${score.grade}`)}
           />
         </div>
+
+        {myProposals.length > 0 && (
+          <div
+            className="bg-gray-950/60 rounded p-3 mb-6"
+            data-testid="growth-proposals"
+          >
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
+              {t("room.assessment.growthTitle")}
+            </p>
+            <ul className="space-y-1">
+              {myProposals.map((p, i) => (
+                <li
+                  key={`${p.character_id}-${p.grow_type}-${p.name}-${i}`}
+                  className="flex items-center justify-between text-sm border-b border-gray-800 last:border-b-0 py-1"
+                  data-testid="growth-proposal-item"
+                >
+                  <span className="text-gray-300">
+                    {charNameById.get(p.character_id) ?? p.character_id}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded uppercase ${
+                        p.grow_type === "art"
+                          ? "bg-purple-900/60 text-purple-200"
+                          : "bg-emerald-900/60 text-emerald-200"
+                      }`}
+                    >
+                      {t(`room.assessment.growthType.${p.grow_type}`)}
+                    </span>
+                    <span className="font-mono text-white">{p.name}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <button
           onClick={onBackToLobby}
