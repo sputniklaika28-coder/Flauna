@@ -29,6 +29,7 @@ import {
   CastArtModal,
   CastArtCutscene,
   AssessmentScreen,
+  SessionLostScreen,
 } from "../components/dialogs";
 import type {
   GameState,
@@ -250,6 +251,11 @@ export default function Room() {
 
         const wsUrl = `ws://${window.location.host}/room/${roomId}`;
         const ws = new TacexWebSocket(wsUrl, handleMessage, (status) => {
+          // Once SESSION_LOST is set, stop overwriting it with transient
+          // socket-level status updates so the lost-session screen stays put.
+          if (useGameStore.getState().connectionStatus === "SESSION_LOST") {
+            return;
+          }
           if (status === "connected") {
             ws.send({
               action: "join_room",
@@ -495,6 +501,13 @@ export default function Room() {
       />
       <AssessmentScreen
         onBackToLobby={() => {
+          if (roomId) clearSession(roomId);
+          navigate("/");
+        }}
+      />
+      <SessionLostScreen
+        onBackToLobby={() => {
+          wsRef.current?.close();
           if (roomId) clearSession(roomId);
           navigate("/");
         }}
