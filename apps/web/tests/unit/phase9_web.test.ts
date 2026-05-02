@@ -46,6 +46,7 @@ import DeathAvoidanceDialog from "../../src/components/dialogs/DeathAvoidanceDia
 import SessionLostScreen from "../../src/components/dialogs/SessionLostScreen";
 import CombatResultModal from "../../src/components/dialogs/CombatResultModal";
 import AssessmentScreen from "../../src/components/dialogs/AssessmentScreen";
+import SideMenu from "../../src/components/layout/SideMenu";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -2286,5 +2287,210 @@ describe("Phase 9 web: AssessmentScreen keyboard + a11y", () => {
     const overlay = screen.getByTestId("assessment-screen");
     fireEvent.keyDown(overlay, { key: "Enter" });
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SideMenu CharCard — spec §5-2-6 (katashiro / status effects / evasion dots)
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: SideMenu CharCard (§5-2-6)", () => {
+  function makeChar(
+    over: Partial<Character> & Pick<Character, "id">,
+  ): Character {
+    const base: Character = {
+      id: over.id,
+      name: over.id,
+      player_id: null,
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 2,
+      max_evasion_dice: 2,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+    return { ...base, ...over };
+  }
+
+  function makeState(
+    over: Partial<GameState> & Pick<GameState, "characters" | "turn_order">,
+  ): GameState {
+    const base = {
+      room_id: "r",
+      version: 1,
+      seed: 1,
+      phase: "combat" as GamePhase,
+      machine_state: "IDLE" as const,
+      current_turn_index: 0,
+      round_number: 1,
+      map_size: [10, 10] as [number, number],
+      obstacles: [],
+      current_turn_summary: null,
+      pending_actions: [],
+    };
+    return { ...base, ...over } as GameState;
+  }
+
+  function renderSideMenu() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(SideMenu),
+      ),
+    );
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+  });
+
+  afterEach(() => {
+    useGameStore.setState({
+      gameState: null,
+      myPlayerId: null,
+    } as never);
+  });
+
+  it("shows the katashiro count for the local player's PC", () => {
+    const me = makeChar({
+      id: "c1",
+      player_id: "p1",
+      inventory: { katashiro: 7 },
+    });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    const node = screen.getByTestId("sidemenu-katashiro-c1");
+    expect(node.textContent).toContain("7");
+  });
+
+  it("hides the katashiro count for other characters", () => {
+    const me = makeChar({
+      id: "c1",
+      player_id: "p1",
+      inventory: { katashiro: 4 },
+    });
+    const other = makeChar({
+      id: "c2",
+      player_id: "p2",
+      inventory: { katashiro: 9 },
+    });
+    useGameStore.setState({
+      gameState: makeState({
+        characters: [me, other],
+        turn_order: ["c1", "c2"],
+      }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    expect(screen.queryByTestId("sidemenu-katashiro-c1")).not.toBeNull();
+    expect(screen.queryByTestId("sidemenu-katashiro-c2")).toBeNull();
+  });
+
+  it("hides the katashiro row when the inventory has no katashiro key", () => {
+    const me = makeChar({ id: "c1", player_id: "p1", inventory: {} });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    expect(screen.queryByTestId("sidemenu-katashiro-c1")).toBeNull();
+  });
+
+  it("renders the status row with localized 'なし' when no status effects are present", () => {
+    const me = makeChar({ id: "c1", player_id: "p1" });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    const status = screen.getByTestId("sidemenu-status-c1");
+    expect(status.textContent).toBe(ja["room.sideMenu.statusNone"]);
+  });
+
+  it("renders status effects with name and remaining duration", () => {
+    const me = makeChar({
+      id: "c1",
+      player_id: "p1",
+      status_effects: [
+        { name: "毒", duration: 3, payload: {} },
+        { name: "怯え", duration: 0, payload: {} },
+      ],
+    });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    const status = screen.getByTestId("sidemenu-status-c1");
+    expect(status.textContent).toContain("毒");
+    expect(status.textContent).toContain("×3");
+    expect(status.textContent).toContain("怯え");
+  });
+
+  it("renders the evasion dots filled/empty for the live count", () => {
+    const me = makeChar({
+      id: "c1",
+      player_id: "p1",
+      evasion_dice: 3,
+      max_evasion_dice: 5,
+    });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    const dots = screen.getAllByTestId("evasion-dots")[0]!;
+    expect(dots.textContent).toBe("●●●○○");
+  });
+
+  it("clamps evasion dots when current exceeds max and skips the dot row when max > 10", () => {
+    const me = makeChar({
+      id: "c1",
+      player_id: "p1",
+      evasion_dice: 99,
+      max_evasion_dice: 12,
+    });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    expect(screen.queryAllByTestId("evasion-dots")).toHaveLength(0);
+    expect(screen.getByTestId("sidemenu-evasion-c1").textContent).toBe(
+      "99/12",
+    );
+  });
+
+  it("ja and en both expose the SideMenu §5-2-6 keys", () => {
+    expect(ja).toHaveProperty("room.sideMenu.status");
+    expect(ja).toHaveProperty("room.sideMenu.statusNone");
+    expect(ja).toHaveProperty("room.sideMenu.statusDuration");
+    expect(ja).toHaveProperty("room.sideMenu.katashiroCount");
+    expect(en).toHaveProperty("room.sideMenu.status");
+    expect(en).toHaveProperty("room.sideMenu.statusNone");
+    expect(en).toHaveProperty("room.sideMenu.statusDuration");
+    expect(en).toHaveProperty("room.sideMenu.katashiroCount");
   });
 });
