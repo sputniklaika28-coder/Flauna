@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, usePendingStore } from "../../stores";
 import { useDeadlineUrgency } from "../../hooks/useDeadlineUrgency";
@@ -14,6 +14,7 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
   const { gameState } = useGameStore();
   const [choice, setChoice] = useState<DeathAvoidanceChoice>("avoid_death");
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const focusedOnceRef = useRef(false);
 
   const target = gameState?.characters.find(
     (c) => c.id === request?.target_character_id,
@@ -21,17 +22,34 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
   const katashiroHeld = target?.inventory["katashiro"] ?? 0;
   const hasEnough = katashiroHeld >= (request?.katashiro_required ?? 2);
 
+  // Reset countdown + default choice in render the moment a new pending lands,
+  // so the very first paint already has submit enabled (autofocus can take).
+  const [trackedPendingId, setTrackedPendingId] = useState<string | null>(null);
+  const currentPendingId = request?.pending_id ?? null;
+  if (currentPendingId !== trackedPendingId) {
+    setTrackedPendingId(currentPendingId);
+    setSecondsLeft(request?.deadline_seconds ?? 0);
+    setChoice(hasEnough ? "avoid_death" : "accept_death");
+    focusedOnceRef.current = false;
+  }
+
   useEffect(() => {
     if (!request) return;
-    setSecondsLeft(request.deadline_seconds);
-    setChoice(hasEnough ? "avoid_death" : "accept_death");
-
     const id = setInterval(
       () => setSecondsLeft((s) => Math.max(0, s - 1)),
       1000,
     );
     return () => clearInterval(id);
-  }, [request, hasEnough]);
+  }, [request]);
+
+  // Callback ref keeps focus deterministic — the player can confirm with Enter
+  // the moment the dialog mounts, before the §16 alarm runs out.
+  const submitRef = useCallback((node: HTMLButtonElement | null) => {
+    if (node && !focusedOnceRef.current) {
+      focusedOnceRef.current = true;
+      node.focus();
+    }
+  }, []);
 
   const urgency = useDeadlineUrgency(secondsLeft, request !== null);
 
@@ -40,6 +58,16 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
   const handleSubmit = () => {
     if (urgency.isExpired) return;
     onSubmit(request.pending_id, choice);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+      return;
+    }
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "TEXTAREA" || tag === "SELECT") return;
+    e.preventDefault();
+    handleSubmit();
   };
 
   const n = request.katashiro_required;
@@ -58,12 +86,21 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
         : "text-yellow-400";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="death-avoidance-dialog-title"
+      onKeyDown={handleKeyDown}
+    >
       <div
         data-testid="death-avoidance-dialog"
         className={`bg-gray-900 border rounded-lg p-6 w-96 text-white ${borderClass}`}
       >
-        <h2 className="text-lg font-bold text-red-400 mb-4">
+        <h2
+          id="death-avoidance-dialog-title"
+          className="text-lg font-bold text-red-400 mb-4"
+        >
           💀 {t("room.deathAvoidance.title")}
         </h2>
 
@@ -156,6 +193,8 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
         </div>
 
         <button
+          ref={submitRef}
+          data-testid="death-avoidance-submit"
           onClick={handleSubmit}
           disabled={urgency.isExpired}
           className="w-full bg-red-700 hover:bg-red-600 text-white rounded py-2 font-semibold disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
