@@ -5,6 +5,12 @@ import { nanoid } from "nanoid";
 import { TacexWebSocket } from "../services/websocket";
 import { joinRoom } from "../services/api";
 import { playSe } from "../services/audio";
+import {
+  clearSession,
+  loadPlayerName,
+  loadSession,
+  saveSession,
+} from "../services/sessionPersistence";
 import { usePhaseBgm } from "../hooks/usePhaseBgm";
 import {
   useGameStore,
@@ -223,17 +229,33 @@ export default function Room() {
 
     (async () => {
       try {
-        const joinResp = await joinRoom(roomId, { player_name: "プレイヤー" });
-        setAuth(joinResp.player_id, joinResp.player_token);
+        const cached = loadSession(roomId);
+        let playerId: string;
+        let playerToken: string;
+        if (cached) {
+          playerId = cached.player_id;
+          playerToken = cached.player_token;
+        } else {
+          const playerName = loadPlayerName() ?? "プレイヤー";
+          const joinResp = await joinRoom(roomId, { player_name: playerName });
+          playerId = joinResp.player_id;
+          playerToken = joinResp.player_token;
+          saveSession(roomId, {
+            player_id: playerId,
+            player_token: playerToken,
+            player_name: playerName,
+          });
+        }
+        setAuth(playerId, playerToken);
 
         const wsUrl = `ws://${window.location.host}/room/${roomId}`;
         const ws = new TacexWebSocket(wsUrl, handleMessage, (status) => {
           if (status === "connected") {
             ws.send({
               action: "join_room",
-              player_id: joinResp.player_id,
+              player_id: playerId,
               room_id: roomId,
-              auth_token: joinResp.player_token,
+              auth_token: playerToken,
               last_seen_event_id: lastSeenEventId,
             });
             setConnectionStatus("AUTHENTICATING");
@@ -465,8 +487,18 @@ export default function Room() {
       <CastArtCutscene />
       <EvasionDialog onSubmit={handleSubmitEvasion} />
       <DeathAvoidanceDialog onSubmit={handleSubmitDeathAvoidance} />
-      <CombatResultModal onBackToLobby={() => navigate("/")} />
-      <AssessmentScreen onBackToLobby={() => navigate("/")} />
+      <CombatResultModal
+        onBackToLobby={() => {
+          if (roomId) clearSession(roomId);
+          navigate("/");
+        }}
+      />
+      <AssessmentScreen
+        onBackToLobby={() => {
+          if (roomId) clearSession(roomId);
+          navigate("/");
+        }}
+      />
     </div>
   );
 }
