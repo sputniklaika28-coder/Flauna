@@ -43,6 +43,7 @@ import type { Character, GamePhase, GameState } from "../../src/types";
 import { useDeadlineUrgency } from "../../src/hooks/useDeadlineUrgency";
 import EvasionDialog from "../../src/components/dialogs/EvasionDialog";
 import DeathAvoidanceDialog from "../../src/components/dialogs/DeathAvoidanceDialog";
+import SideMenu from "../../src/components/layout/SideMenu";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -1795,5 +1796,139 @@ describe("Phase 9 web: DeathAvoidanceDialog keyboard + a11y", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SideMenu — "あなたの番" banner (§9-1)
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: SideMenu yourTurn banner (§9-1)", () => {
+  function makeChar(
+    over: Partial<Character> & Pick<Character, "id">,
+  ): Character {
+    return {
+      id: over.id,
+      name: over.name ?? over.id,
+      player_id: over.player_id ?? null,
+      faction: over.faction ?? "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 2,
+      max_evasion_dice: 2,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  function makeState(opts: {
+    currentActorId: string;
+    machineState?: GameState["machine_state"];
+    chars: Character[];
+  }): GameState {
+    return {
+      room_id: "r",
+      version: 1,
+      seed: 1,
+      phase: "combat",
+      machine_state: opts.machineState ?? "IDLE",
+      turn_order: opts.chars.map((c) => c.id),
+      current_turn_index: opts.chars.findIndex(
+        (c) => c.id === opts.currentActorId,
+      ),
+      round_number: 1,
+      characters: opts.chars,
+      map_size: [10, 10],
+      obstacles: [],
+      current_turn_summary: null,
+      pending_actions: [],
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useUIStore.setState({ sideMenuOpen: false } as never);
+  });
+
+  afterEach(() => {
+    useGameStore.setState({
+      gameState: null,
+      myPlayerId: null,
+    } as never);
+  });
+
+  function renderSideMenu() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(SideMenu),
+      ),
+    );
+  }
+
+  it("shows the banner with the actor name when it is the local player's turn", () => {
+    const me = makeChar({ id: "c1", name: "祓魔師A", player_id: "p1" });
+    const npc = makeChar({
+      id: "n1",
+      name: "妖魔",
+      player_id: null,
+      faction: "enemy",
+    });
+    useGameStore.setState({
+      gameState: makeState({ currentActorId: "c1", chars: [me, npc] }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    const banner = screen.getByTestId("sidemenu-your-turn");
+    expect(banner.textContent).toContain(ja["room.yourTurn"]);
+    expect(banner.textContent).toContain("祓魔師A");
+    expect(banner.getAttribute("role")).toBe("status");
+  });
+
+  it("hides the banner when it is another character's turn", () => {
+    const me = makeChar({ id: "c1", player_id: "p1" });
+    const npc = makeChar({
+      id: "n1",
+      player_id: null,
+      faction: "enemy",
+    });
+    useGameStore.setState({
+      gameState: makeState({ currentActorId: "n1", chars: [me, npc] }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    expect(screen.queryByTestId("sidemenu-your-turn")).toBeNull();
+  });
+
+  it("hides the banner when machine_state is not IDLE even on the player's turn", () => {
+    const me = makeChar({ id: "c1", player_id: "p1" });
+    useGameStore.setState({
+      gameState: makeState({
+        currentActorId: "c1",
+        machineState: "RESOLVING_ACTION",
+        chars: [me],
+      }),
+      myPlayerId: "p1",
+    } as never);
+    renderSideMenu();
+    expect(screen.queryByTestId("sidemenu-your-turn")).toBeNull();
   });
 });

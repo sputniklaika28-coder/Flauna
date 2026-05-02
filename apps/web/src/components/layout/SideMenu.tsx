@@ -84,11 +84,22 @@ export default function SideMenu() {
 
   if (!gameState) return null;
 
-  const { characters, turn_order, current_turn_index } = gameState;
+  const { characters, turn_order, current_turn_index, machine_state } =
+    gameState;
   const currentActorId =
     turn_order.length > 0
       ? turn_order[current_turn_index % turn_order.length]
       : null;
+  const currentActor = currentActorId
+    ? characters.find((c) => c.id === currentActorId) ?? null
+    : null;
+  // Spec §9-1: when the local player gains the turn, the side menu must
+  // surface a clear "あなたの番" indicator — the QuickActionBar version is
+  // easy to miss when the player is scanning their roster on the side.
+  const isMyTurn =
+    !!currentActor &&
+    currentActor.player_id === myPlayerId &&
+    machine_state === "IDLE";
 
   const myChars = characters.filter((c) => c.player_id === myPlayerId);
   const others = characters.filter((c) => c.player_id !== myPlayerId);
@@ -112,6 +123,20 @@ export default function SideMenu() {
           ${sideMenuOpen ? "translate-x-0" : "-translate-x-full"}
           lg:transform-none`}
       >
+      {isMyTurn && currentActor && (
+        <div
+          data-testid="sidemenu-your-turn"
+          role="status"
+          aria-live="polite"
+          className="mb-2 px-2 py-1 rounded border border-yellow-400 bg-yellow-500/15 text-yellow-300 text-sm font-bold flex items-center gap-1"
+        >
+          <span aria-hidden="true">▶</span>
+          <span>{t("room.yourTurn")}</span>
+          <span className="ml-auto text-xs text-yellow-200/80 truncate">
+            {currentActor.name}
+          </span>
+        </div>
+      )}
       {myChars.map((c) => (
         <CharCard key={c.id} char={c} isCurrent={c.id === currentActorId} />
       ))}
