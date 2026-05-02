@@ -51,6 +51,10 @@ import type {
   CastArtPayload,
 } from "../types";
 import type { ServerMessage } from "@flauna/ws-schema";
+import {
+  applySessionRestorePendings,
+  type SessionRestoreLike,
+} from "../services/sessionRestore";
 
 export default function Room() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -115,6 +119,15 @@ export default function Room() {
           const hpMap: Record<string, number> = {};
           state.characters.forEach((c) => { hpMap[c.id] = c.hp; });
           prevHpRef.current = hpMap;
+
+          applySessionRestorePendings(msg as unknown as SessionRestoreLike, {
+            myPlayerId,
+            setEvasionRequest,
+            setDeathAvoidanceRequest,
+            addSystemEntry: (text) => addEntry("system", text),
+            t,
+            playSe,
+          });
           break;
         }
         case "state_full": {

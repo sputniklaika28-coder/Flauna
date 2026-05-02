@@ -168,6 +168,10 @@ const en = {
   "room.system.event": "[{{name}}]",
   "room.system.aiFallback": "[AI fallback] {{reason}}",
   "room.system.error": "Error: {{code}} — {{message}}",
+  "room.system.pendingExpiredEvasion": "Evasion auto-resolved during disconnection ({{reason}})",
+  "room.system.pendingExpiredDeathAvoidance": "Death avoidance auto-resolved during disconnection ({{reason}})",
+  "room.system.pendingRestoredEvasion": "Restoring the evasion prompt",
+  "room.system.pendingRestoredDeathAvoidance": "Restoring the death-avoidance prompt",
 } as const;
 
 export default en;
