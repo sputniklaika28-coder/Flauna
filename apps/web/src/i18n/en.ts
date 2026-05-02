@@ -153,6 +153,7 @@ const en = {
   "room.offline": "Offline",
   "room.notice.offline": "Network connection lost. Will reconnect automatically once it returns",
   "room.notice.backOnline": "Network restored. Reconnecting…",
+  "room.submitting": "Submitting…",
 } as const;
 
 export default en;

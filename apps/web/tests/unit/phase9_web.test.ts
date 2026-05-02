@@ -30,7 +30,8 @@ import { usePhaseBgm } from "../../src/hooks/usePhaseBgm";
 import { useTurnStartSe } from "../../src/hooks/useTurnStartSe";
 import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import Header from "../../src/components/layout/Header";
-import { useGameStore } from "../../src/stores";
+import { useGameStore, usePendingStore } from "../../src/stores";
+import QuickActionBar from "../../src/components/action/QuickActionBar";
 import { I18nextProvider } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 import type { Character, GamePhase, GameState } from "../../src/types";
@@ -63,6 +64,11 @@ describe("Phase 9 web: i18n keys", () => {
     expect(en).toHaveProperty("room.offline");
     expect(en).toHaveProperty("room.notice.offline");
     expect(en).toHaveProperty("room.notice.backOnline");
+  });
+
+  it("ja and en expose the room.submitting indicator key", () => {
+    expect(ja).toHaveProperty("room.submitting");
+    expect(en).toHaveProperty("room.submitting");
   });
 
   it("ja and en still have identical key sets after Phase 9", () => {
@@ -630,5 +636,119 @@ describe("Phase 9 web: Header offline indicator", () => {
     expect(screen.getByTestId("connection-label").textContent).toBe(
       ja["room.offline"],
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// QuickActionBar — submitting indicator (spec §6-4)
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: QuickActionBar submitting indicator", () => {
+  function makeChar(
+    over: Partial<Character> & Pick<Character, "id">,
+  ): Character {
+    return {
+      id: over.id,
+      name: over.name ?? over.id,
+      player_id: over.player_id ?? null,
+      faction: over.faction ?? "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 2,
+      max_evasion_dice: 2,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  function makeMyTurnState(): GameState {
+    const me = makeChar({ id: "c1", player_id: "p1" });
+    return {
+      room_id: "r",
+      version: 1,
+      seed: 1,
+      phase: "combat",
+      machine_state: "IDLE",
+      turn_order: ["c1"],
+      current_turn_index: 0,
+      round_number: 1,
+      characters: [me],
+      map_size: [10, 10],
+      obstacles: [],
+      current_turn_summary: null,
+      pending_actions: [],
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useGameStore.setState({
+      gameState: makeMyTurnState(),
+      myPlayerId: "p1",
+    } as never);
+    usePendingStore.setState({ submittingTurnAction: false });
+  });
+
+  afterEach(() => {
+    useGameStore.setState({
+      gameState: null,
+      myPlayerId: null,
+    } as never);
+    usePendingStore.setState({ submittingTurnAction: false });
+  });
+
+  function renderBar(onEndTurn: () => void = () => {}) {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(QuickActionBar, { onEndTurn }),
+      ),
+    );
+  }
+
+  it("does not show the submitting label when idle", () => {
+    renderBar();
+    expect(screen.queryByTestId("quickbar-submitting")).toBeNull();
+    const endTurn = screen.getByTestId("quickbar-end-turn") as HTMLButtonElement;
+    expect(endTurn.disabled).toBe(false);
+  });
+
+  it("shows the submitting label and disables End Turn while submitting", () => {
+    usePendingStore.setState({ submittingTurnAction: true });
+    renderBar();
+    expect(screen.getByTestId("quickbar-submitting").textContent).toBe(
+      ja["room.submitting"],
+    );
+    const endTurn = screen.getByTestId("quickbar-end-turn") as HTMLButtonElement;
+    expect(endTurn.disabled).toBe(true);
+    expect(
+      screen.getByTestId("quickaction-bar").getAttribute("aria-busy"),
+    ).toBe("true");
+  });
+
+  it("does not invoke onEndTurn while disabled", () => {
+    usePendingStore.setState({ submittingTurnAction: true });
+    const handler = vi.fn();
+    renderBar(handler);
+    fireEvent.click(screen.getByTestId("quickbar-end-turn"));
+    expect(handler).not.toHaveBeenCalled();
   });
 });
