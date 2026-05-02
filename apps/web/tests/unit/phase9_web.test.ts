@@ -47,6 +47,7 @@ import SessionLostScreen from "../../src/components/dialogs/SessionLostScreen";
 import CombatResultModal from "../../src/components/dialogs/CombatResultModal";
 import AssessmentScreen from "../../src/components/dialogs/AssessmentScreen";
 import SideMenu from "../../src/components/layout/SideMenu";
+import ContextMenu from "../../src/components/map/ContextMenu";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -2492,5 +2493,186 @@ describe("Phase 9 web: SideMenu CharCard (§5-2-6)", () => {
     expect(en).toHaveProperty("room.sideMenu.statusNone");
     expect(en).toHaveProperty("room.sideMenu.statusDuration");
     expect(en).toHaveProperty("room.sideMenu.katashiroCount");
+  });
+});
+
+describe("Phase 9 web: ContextMenu keyboard + a11y (§17, §5-2-2)", () => {
+  function makeChar(id: string, name: string): Character {
+    return {
+      id,
+      name,
+      player_id: null,
+      faction: "enemy",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 0,
+      max_evasion_dice: 0,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  function renderMenu(handlers?: {
+    onAttack?: ReturnType<typeof vi.fn>;
+    onDetailAttack?: ReturnType<typeof vi.fn>;
+    onCastArt?: ReturnType<typeof vi.fn>;
+  }) {
+    const onAttack = handlers?.onAttack ?? vi.fn();
+    const onDetailAttack = handlers?.onDetailAttack ?? vi.fn();
+    const onCastArt = handlers?.onCastArt ?? vi.fn();
+    const utils = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ContextMenu, {
+          onAttack,
+          onDetailAttack,
+          onCastArt,
+        }),
+      ),
+    );
+    return { ...utils, onAttack, onDetailAttack, onCastArt };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    const target = makeChar("e1", "怨霊武者");
+    useGameStore.setState({
+      gameState: { characters: [target] } as unknown as GameState,
+      myPlayerId: "p1",
+    } as never);
+    useUIStore.setState({
+      contextMenuCharId: "e1",
+      contextMenuPos: { x: 100, y: 200 },
+    } as never);
+  });
+
+  afterEach(() => {
+    useUIStore.setState({
+      contextMenuCharId: null,
+      contextMenuPos: null,
+    } as never);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  it("declares role=menu and labels itself with the target name", () => {
+    renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    expect(menu.getAttribute("role")).toBe("menu");
+    const labelId = menu.getAttribute("aria-labelledby");
+    expect(labelId).not.toBeNull();
+    expect(document.getElementById(labelId!)?.textContent).toBe("怨霊武者");
+  });
+
+  it("renders each action as a menuitem with roving tabindex", () => {
+    renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    const items = menu.querySelectorAll("[role='menuitem']");
+    expect(items.length).toBeGreaterThanOrEqual(4);
+    items.forEach((it) => expect(it.getAttribute("tabindex")).toBe("-1"));
+  });
+
+  it("autofocuses the first menuitem on open", async () => {
+    renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    const first = menu.querySelector<HTMLButtonElement>("[role='menuitem']");
+    expect(first).not.toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(first));
+  });
+
+  it("ArrowDown moves focus to the next menuitem and wraps from the last", () => {
+    renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    const items = menu.querySelectorAll<HTMLButtonElement>("[role='menuitem']");
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[1]);
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[2]);
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[3]);
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(items[0]);
+  });
+
+  it("ArrowUp moves focus to the previous menuitem and wraps from the first", () => {
+    renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    const items = menu.querySelectorAll<HTMLButtonElement>("[role='menuitem']");
+    fireEvent.keyDown(menu, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(items[items.length - 1]);
+    fireEvent.keyDown(menu, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(items[items.length - 2]);
+  });
+
+  it("Home jumps to the first menuitem and End to the last", () => {
+    renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    const items = menu.querySelectorAll<HTMLButtonElement>("[role='menuitem']");
+    fireEvent.keyDown(menu, { key: "End" });
+    expect(document.activeElement).toBe(items[items.length - 1]);
+    fireEvent.keyDown(menu, { key: "Home" });
+    expect(document.activeElement).toBe(items[0]);
+  });
+
+  it("Escape closes the menu", () => {
+    renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    fireEvent.keyDown(menu, { key: "Escape" });
+    expect(useUIStore.getState().contextMenuCharId).toBeNull();
+    expect(useUIStore.getState().contextMenuPos).toBeNull();
+  });
+
+  it("Tab closes the menu (per WAI-ARIA menu pattern)", () => {
+    renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    fireEvent.keyDown(menu, { key: "Tab" });
+    expect(useUIStore.getState().contextMenuCharId).toBeNull();
+  });
+
+  it("Enter on the focused menuitem invokes its handler and closes the menu", () => {
+    const { onAttack } = renderMenu();
+    const menu = screen.getByTestId("context-menu");
+    const first = menu.querySelector<HTMLButtonElement>("[role='menuitem']")!;
+    // The button's native click handler fires on Enter via click().
+    first.click();
+    expect(onAttack).toHaveBeenCalledWith("e1");
+    expect(useUIStore.getState().contextMenuCharId).toBeNull();
+  });
+
+  it("renders nothing when no context menu target is set", () => {
+    useUIStore.setState({
+      contextMenuCharId: null,
+      contextMenuPos: null,
+    } as never);
+    const { container } = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ContextMenu, {
+          onAttack: vi.fn(),
+          onDetailAttack: vi.fn(),
+          onCastArt: vi.fn(),
+        }),
+      ),
+    );
+    expect(container.firstChild).toBeNull();
   });
 });
