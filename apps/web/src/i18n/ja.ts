@@ -168,6 +168,10 @@ const ja = {
   "room.system.event": "[{{name}}]",
   "room.system.aiFallback": "[AIフォールバック] {{reason}}",
   "room.system.error": "エラー: {{code}} — {{message}}",
+  "room.system.pendingExpiredEvasion": "切断中に回避が自動処理されました（{{reason}}）",
+  "room.system.pendingExpiredDeathAvoidance": "切断中に死亡回避が自動処理されました（{{reason}}）",
+  "room.system.pendingRestoredEvasion": "回避要求を再表示します",
+  "room.system.pendingRestoredDeathAvoidance": "死亡回避要求を再表示します",
 } as const;
 
 export default ja;

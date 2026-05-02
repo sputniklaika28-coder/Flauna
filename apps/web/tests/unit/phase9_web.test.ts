@@ -93,6 +93,10 @@ describe("Phase 9 web: i18n keys", () => {
       "room.system.event",
       "room.system.aiFallback",
       "room.system.error",
+      "room.system.pendingExpiredEvasion",
+      "room.system.pendingExpiredDeathAvoidance",
+      "room.system.pendingRestoredEvasion",
+      "room.system.pendingRestoredDeathAvoidance",
     ] as const;
     for (const k of keys) {
       expect(ja).toHaveProperty(k);
