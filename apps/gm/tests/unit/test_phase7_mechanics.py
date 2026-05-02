@@ -602,6 +602,25 @@ def test_enter_assessment_does_not_mutate_original():
     assert state.phase == original_phase
 
 
+def test_enter_assessment_populates_growth_proposals_on_victory():
+    pc1 = _make_pc(char_id="pc1")
+    pc2 = _make_pc(char_id="pc2")
+    enemy = _make_enemy(hp=0)
+    state = _make_state([pc1, pc2, enemy], round_number=4)
+    new_state, _score = enter_assessment(state, "victory")
+    assert len(new_state.growth_proposals) > 0
+    proposed_char_ids = {p.character_id for p in new_state.growth_proposals}
+    assert proposed_char_ids == {"pc1", "pc2"}
+
+
+def test_enter_assessment_growth_proposals_empty_on_defeat():
+    pc = _make_pc(hp=0)
+    state = _make_state([pc])
+    new_state, _score = enter_assessment(state, "defeat")
+    # Dead PCs and grade-D pools are both empty; combined → no proposals.
+    assert new_state.growth_proposals == []
+
+
 # ---------------------------------------------------------------------------
 # Growth — propose_growth
 # ---------------------------------------------------------------------------

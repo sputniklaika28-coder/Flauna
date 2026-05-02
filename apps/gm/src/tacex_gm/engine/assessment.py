@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from typing import Literal
 
-from tacex_gm.models.assessment import Grade, SessionScore
+from tacex_gm.engine.growth import propose_growth
+from tacex_gm.models.assessment import Grade, GrowthProposal, SessionScore
 from tacex_gm.models.state import GameState
 
 
@@ -53,6 +54,14 @@ def score_session(
     )
 
 
+def _collect_growth_proposals(state: GameState, score: SessionScore) -> list[GrowthProposal]:
+    """Aggregate growth proposals for every eligible PC."""
+    proposals: list[GrowthProposal] = []
+    for character in state.characters:
+        proposals.extend(propose_growth(character, score))
+    return proposals
+
+
 def enter_assessment(
     state: GameState,
     outcome: Literal["victory", "defeat"],
@@ -62,10 +71,12 @@ def enter_assessment(
     Returns the updated GameState and the SessionScore.
     """
     score = score_session(state, outcome)
+    proposals = _collect_growth_proposals(state, score)
     new_state = state.model_copy(
         update={
             "phase": "assessment",
             "assessment_result": score,
+            "growth_proposals": proposals,
         }
     )
     return new_state, score

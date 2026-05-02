@@ -133,6 +133,7 @@ export interface GameState {
   objects?: MapObject[];
   combat_pressure?: CombatPressure;
   assessment_result?: SessionScore | null;
+  growth_proposals?: GrowthProposal[];
   current_turn_summary: unknown | null;
   pending_actions: unknown[];
 }
