@@ -224,6 +224,29 @@ function applyServerEvent(event: { type: string; [k: string]: unknown }): void {
         deadline_seconds: event.deadline_seconds as number,
       };
       pending.setEvasionRequest(req);
+      const me = game.myPlayerId;
+      const target = game.gameState?.characters.find(
+        (c) => c.id === req.target_id,
+      );
+      if (me && target?.player_id === me) {
+        playSe("evade_alert");
+      }
+      break;
+    }
+    case "death_avoidance_required": {
+      pending.setDeathAvoidanceRequest({
+        pending_id: event.pending_id as string,
+        target_character_id: event.target_character_id as string,
+        target_player_id: event.target_player_id as string,
+        incoming_damage: event.incoming_damage as number,
+        damage_type: event.damage_type as string,
+        katashiro_required: event.katashiro_required as number,
+        katashiro_remaining: event.katashiro_remaining as number,
+        deadline_seconds: event.deadline_seconds as number,
+      });
+      if (event.target_player_id === game.myPlayerId) {
+        playSe("death_avoidance_alert");
+      }
       break;
     }
   }
@@ -529,6 +552,92 @@ describe("Phase 9 integration: evade_required → EvasionDialog", () => {
     // Submission clears the pending request via the Room handler:
     usePendingStore.getState().setEvasionRequest(null);
     expect(usePendingStore.getState().evasionRequest).toBeNull();
+  });
+});
+
+describe("Phase 9 integration: alert SE on interrupt events", () => {
+  it("plays evade_alert when the local player is the evasion target", () => {
+    const audio = installAudioSpy();
+    const me = makeChar({ id: "char-pc", player_id: "p1" });
+    const attacker = makeChar({
+      id: "char-en",
+      player_id: null,
+      faction: "enemy",
+    });
+    useGameStore.getState().applyStateFull(
+      makeState({ characters: [me, attacker] }),
+    );
+
+    applyServerEvent({
+      type: "evade_required",
+      pending_id: "pe-1",
+      attacker_id: "char-en",
+      target_id: "char-pc",
+      deadline_seconds: 10,
+    });
+
+    expect(audio.se).toEqual(["evade_alert"]);
+    expect(usePendingStore.getState().evasionRequest?.pending_id).toBe("pe-1");
+  });
+
+  it("does NOT play evade_alert when another player is the target", () => {
+    const audio = installAudioSpy();
+    const me = makeChar({ id: "char-mine", player_id: "p1" });
+    const ally = makeChar({ id: "char-ally", player_id: "p2" });
+    const attacker = makeChar({
+      id: "char-en",
+      player_id: null,
+      faction: "enemy",
+    });
+    useGameStore.getState().applyStateFull(
+      makeState({ characters: [me, ally, attacker] }),
+    );
+
+    applyServerEvent({
+      type: "evade_required",
+      pending_id: "pe-2",
+      attacker_id: "char-en",
+      target_id: "char-ally",
+      deadline_seconds: 10,
+    });
+
+    expect(audio.se).toEqual([]);
+    // The pending request still updates — only the audio cue is gated.
+    expect(usePendingStore.getState().evasionRequest?.target_id).toBe(
+      "char-ally",
+    );
+  });
+
+  it("plays death_avoidance_alert only when the local player is targeted", () => {
+    const audio = installAudioSpy();
+    const me = makeChar({ id: "char-mine", player_id: "p1" });
+    useGameStore.getState().applyStateFull(makeState({ characters: [me] }));
+
+    applyServerEvent({
+      type: "death_avoidance_required",
+      pending_id: "pd-1",
+      target_character_id: "char-mine",
+      target_player_id: "p1",
+      incoming_damage: 12,
+      damage_type: "physical",
+      katashiro_required: 1,
+      katashiro_remaining: 2,
+      deadline_seconds: 8,
+    });
+    expect(audio.se).toEqual(["death_avoidance_alert"]);
+
+    applyServerEvent({
+      type: "death_avoidance_required",
+      pending_id: "pd-2",
+      target_character_id: "char-other",
+      target_player_id: "p2",
+      incoming_damage: 9,
+      damage_type: "physical",
+      katashiro_required: 1,
+      katashiro_remaining: 0,
+      deadline_seconds: 8,
+    });
+    expect(audio.se).toEqual(["death_avoidance_alert"]);
   });
 });
 

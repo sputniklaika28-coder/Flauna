@@ -184,6 +184,17 @@ export default function Room() {
             deadline_seconds: msg.deadline_seconds,
           };
           setEvasionRequest(req);
+          // Targeted player needs to react fast — fire an alert cue so the
+          // dialog isn't missed when looking away from the screen.
+          if (
+            myPlayerId &&
+            useGameStore
+              .getState()
+              .gameState?.characters.find((c) => c.id === msg.target_id)
+              ?.player_id === myPlayerId
+          ) {
+            playSe("evade_alert");
+          }
           break;
         }
         case "death_avoidance_required": {
@@ -198,6 +209,9 @@ export default function Room() {
             deadline_seconds: msg.deadline_seconds,
           };
           setDeathAvoidanceRequest(daReq);
+          if (msg.target_player_id === myPlayerId) {
+            playSe("death_avoidance_alert");
+          }
           break;
         }
         case "ai_fallback_notice": {
@@ -239,6 +253,7 @@ export default function Room() {
       navigate,
       roomId,
       t,
+      myPlayerId,
     ],
   );
 

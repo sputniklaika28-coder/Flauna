@@ -116,6 +116,19 @@ describe("Phase 9 web: audio service", () => {
     expect(playSeSpy).not.toHaveBeenCalled();
   });
 
+  it("forwards the new alert cues (evade_alert, death_avoidance_alert) to the backend", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+    playSe("evade_alert");
+    playSe("death_avoidance_alert");
+    expect(playSeSpy).toHaveBeenNthCalledWith(1, "evade_alert", 0.6);
+    expect(playSeSpy).toHaveBeenNthCalledWith(2, "death_avoidance_alert", 0.6);
+  });
+
   it("forwards playBgm and stopBgm to the backend", () => {
     const playBgmSpy = vi.fn();
     const stopBgmSpy = vi.fn();
