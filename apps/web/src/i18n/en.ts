@@ -148,6 +148,8 @@ const en = {
   "room.error.ROOM_FULL": "Room is full",
   "room.error.DUPLICATE_CONNECTION": "Another tab is already connected to this room",
   "room.error.generic": "Error: {{code}}",
+  "room.notice.versionMismatchRetry": "State updated. Resending with the latest version",
+  "room.notice.versionMismatchGiveUp": "State updated. Please rebuild the action",
 } as const;
 
 export default en;

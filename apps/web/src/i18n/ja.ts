@@ -148,6 +148,8 @@ const ja = {
   "room.error.ROOM_FULL": "ルームが満員です",
   "room.error.DUPLICATE_CONNECTION": "別のタブでこのルームに接続しています",
   "room.error.generic": "エラー: {{code}}",
+  "room.notice.versionMismatchRetry": "状態が更新されました。最新版で再送信します",
+  "room.notice.versionMismatchGiveUp": "状態が更新されました。アクションを再構築してください",
 } as const;
 
 export default ja;
