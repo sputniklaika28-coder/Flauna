@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, usePendingStore } from "../../stores";
+import { useDeadlineUrgency } from "../../hooks/useDeadlineUrgency";
 import type { DeathAvoidanceChoice } from "../../types";
 
 interface Props {
@@ -32,17 +33,36 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
     return () => clearInterval(id);
   }, [request, hasEnough]);
 
+  const urgency = useDeadlineUrgency(secondsLeft, request !== null);
+
   if (!request) return null;
 
   const handleSubmit = () => {
+    if (urgency.isExpired) return;
     onSubmit(request.pending_id, choice);
   };
 
   const n = request.katashiro_required;
 
+  const borderClass = urgency.isExpired
+    ? "border-gray-500 opacity-80"
+    : urgency.isCritical
+      ? "border-red-500 animate-pulse"
+      : "border-red-500";
+  const timerClass = urgency.isExpired
+    ? "text-gray-400"
+    : urgency.isCritical
+      ? "text-red-400 font-bold animate-pulse"
+      : urgency.isWarning
+        ? "text-orange-400 font-semibold"
+        : "text-yellow-400";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-      <div className="bg-gray-900 border border-red-500 rounded-lg p-6 w-96 text-white">
+      <div
+        data-testid="death-avoidance-dialog"
+        className={`bg-gray-900 border rounded-lg p-6 w-96 text-white ${borderClass}`}
+      >
         <h2 className="text-lg font-bold text-red-400 mb-4">
           💀 {t("room.deathAvoidance.title")}
         </h2>
@@ -68,8 +88,16 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
             </span>
             <span>{katashiroHeld}枚</span>
           </div>
-          <div className="flex justify-between text-yellow-400">
-            <span>{t("room.deathAvoidance.timeLeft", { s: secondsLeft })}</span>
+          <div className="flex justify-between">
+            <span
+              data-testid="death-avoidance-timer"
+              className={timerClass}
+              aria-live={urgency.isCritical ? "assertive" : "polite"}
+            >
+              {urgency.isExpired
+                ? t("room.deathAvoidance.expired")
+                : t("room.deathAvoidance.timeLeft", { s: secondsLeft })}
+            </span>
           </div>
         </div>
 
@@ -129,7 +157,8 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
 
         <button
           onClick={handleSubmit}
-          className="w-full bg-red-700 hover:bg-red-600 text-white rounded py-2 font-semibold"
+          disabled={urgency.isExpired}
+          className="w-full bg-red-700 hover:bg-red-600 text-white rounded py-2 font-semibold disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
         >
           {t("room.deathAvoidance.submit")}
         </button>

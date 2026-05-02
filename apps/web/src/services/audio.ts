@@ -17,7 +17,8 @@ export type SeCue =
   | "escalation"
   | "your_turn"
   | "evade_alert"
-  | "death_avoidance_alert";
+  | "death_avoidance_alert"
+  | "deadline_tick";
 
 export type BgmCue = "combat" | "exploration";
 
@@ -37,6 +38,7 @@ const SE_URLS: Record<SeCue, string> = {
   your_turn: "",
   evade_alert: "",
   death_avoidance_alert: "",
+  deadline_tick: "",
 };
 
 const BGM_URLS: Record<BgmCue, string> = {
