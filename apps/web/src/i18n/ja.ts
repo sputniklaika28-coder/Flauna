@@ -150,6 +150,9 @@ const ja = {
   "room.error.generic": "エラー: {{code}}",
   "room.notice.versionMismatchRetry": "状態が更新されました。最新版で再送信します",
   "room.notice.versionMismatchGiveUp": "状態が更新されました。アクションを再構築してください",
+  "room.offline": "オフライン",
+  "room.notice.offline": "ネットワーク接続が切れました。復旧次第、自動的に再接続します",
+  "room.notice.backOnline": "ネットワークが復旧しました。再接続します",
 } as const;
 
 export default ja;

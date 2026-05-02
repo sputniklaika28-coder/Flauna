@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useGameStore, useUIStore } from "../../stores";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { AudioSettings, LanguageSwitcher } from "../common";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -15,6 +16,7 @@ export default function Header() {
   const { gameState, connectionStatus, myPlayerId } = useGameStore();
   const toggleSideMenu = useUIStore((s) => s.toggleSideMenu);
   const toggleChatPanel = useUIStore((s) => s.toggleChatPanel);
+  const online = useOnlineStatus();
 
   const phaseKey = gameState
     ? (`room.phase.${gameState.phase}` as const)
@@ -80,13 +82,18 @@ export default function Header() {
           </>
         )}
         <span
-          className={`w-2 h-2 rounded-full ${STATUS_COLORS[connectionStatus] ?? "bg-gray-500"}`}
-          title={connectionStatus}
+          className={`w-2 h-2 rounded-full ${
+            online ? STATUS_COLORS[connectionStatus] ?? "bg-gray-500" : "bg-red-500"
+          }`}
+          title={online ? connectionStatus : "OFFLINE"}
+          data-testid="connection-dot"
         />
-        <span className="text-gray-400">
-          {connectionStatus === "ACTIVE"
-            ? t("room.connected")
-            : t("room.connecting")}
+        <span className="text-gray-400" data-testid="connection-label">
+          {!online
+            ? t("room.offline")
+            : connectionStatus === "ACTIVE"
+              ? t("room.connected")
+              : t("room.connecting")}
         </span>
         <AudioSettings />
         <LanguageSwitcher />
