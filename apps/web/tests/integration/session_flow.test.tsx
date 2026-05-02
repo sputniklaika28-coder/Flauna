@@ -185,7 +185,11 @@ function applyServerEvent(event: { type: string; [k: string]: unknown }): void {
           playSe(outcome);
           chat.addEntry(
             "system",
-            outcome === "victory" ? "戦闘終了: 勝利！" : "戦闘終了: 敗北…",
+            i18n.t(
+              outcome === "victory"
+                ? "room.system.combatVictory"
+                : "room.system.combatDefeat",
+            ),
           );
         }
       } else if (name === "combat_pressure_escalated") {
@@ -211,7 +215,10 @@ function applyServerEvent(event: { type: string; [k: string]: unknown }): void {
             casterName: caster?.name ?? casterId,
           });
           playSe("cast_art");
-          chat.addEntry("system", `『${artName}』が放たれた！`);
+          chat.addEntry(
+            "system",
+            i18n.t("room.system.artCastByOther", { art: artName }),
+          );
         }
       }
       break;
