@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, usePendingStore } from "../../stores";
 import { useDeadlineUrgency } from "../../hooks/useDeadlineUrgency";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import type { DeathAvoidanceChoice } from "../../types";
 
 interface Props {
@@ -15,6 +16,7 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
   const [choice, setChoice] = useState<DeathAvoidanceChoice>("avoid_death");
   const [secondsLeft, setSecondsLeft] = useState(0);
   const focusedOnceRef = useRef(false);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
 
   const target = gameState?.characters.find(
     (c) => c.id === request?.target_character_id,
@@ -52,6 +54,7 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
   }, []);
 
   const urgency = useDeadlineUrgency(secondsLeft, request !== null);
+  useFocusTrap(overlayRef, request !== null);
 
   if (!request) return null;
 
@@ -87,6 +90,7 @@ export default function DeathAvoidanceDialog({ onSubmit }: Props) {
 
   return (
     <div
+      ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
       role="alertdialog"
       aria-modal="true"

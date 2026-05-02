@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, usePendingStore } from "../../stores";
 import { useDeadlineUrgency } from "../../hooks/useDeadlineUrgency";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 interface Props {
   onSubmit: (pendingId: string, diceResult: number) => void;
@@ -18,6 +19,7 @@ export default function EvasionDialog({ onSubmit }: Props) {
   const [trackedPendingId, setTrackedPendingId] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const focusedOnceRef = useRef(false);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const currentPendingId = evasionRequest?.pending_id ?? null;
   if (currentPendingId !== trackedPendingId) {
     setTrackedPendingId(currentPendingId);
@@ -47,6 +49,7 @@ export default function EvasionDialog({ onSubmit }: Props) {
   }, []);
 
   const urgency = useDeadlineUrgency(secondsLeft, evasionRequest !== null);
+  useFocusTrap(overlayRef, evasionRequest !== null);
 
   if (!evasionRequest) return null;
 
@@ -87,6 +90,7 @@ export default function EvasionDialog({ onSubmit }: Props) {
 
   return (
     <div
+      ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
       role="alertdialog"
       aria-modal="true"

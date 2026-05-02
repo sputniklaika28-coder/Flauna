@@ -1797,3 +1797,248 @@ describe("Phase 9 web: DeathAvoidanceDialog keyboard + a11y", () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Interrupt dialog focus trap (§17 a11y)
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: EvasionDialog focus trap", () => {
+  function makeChar(id: string, playerId: string | null): Character {
+    return {
+      id,
+      name: id,
+      player_id: playerId,
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 4,
+      evasion_dice: 3,
+      max_evasion_dice: 3,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+    useGameStore.setState({
+      gameState: {
+        characters: [makeChar("me", "p1"), makeChar("foe", null)],
+      },
+      myPlayerId: "p1",
+    } as never);
+  });
+
+  afterEach(() => {
+    usePendingStore.getState().setEvasionRequest(null);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  function renderDialog() {
+    usePendingStore.getState().setEvasionRequest({
+      pending_id: "p",
+      attacker_id: "foe",
+      target_id: "me",
+      deadline_seconds: 30,
+    });
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(EvasionDialog, { onSubmit: vi.fn() }),
+      ),
+    );
+  }
+
+  function getFocusable(): HTMLElement[] {
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    return Array.from(
+      overlay.querySelectorAll<HTMLElement>(
+        "button, input, select, textarea, [tabindex]:not([tabindex='-1'])",
+      ),
+    ).filter((n) => !(n as HTMLButtonElement | HTMLInputElement).disabled);
+  }
+
+  it("wraps Tab from the last focusable element back to the first", () => {
+    renderDialog();
+    const focusable = getFocusable();
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    last.focus();
+    expect(document.activeElement).toBe(last);
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    fireEvent.keyDown(overlay, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+  });
+
+  it("wraps Shift+Tab from the first focusable element back to the last", () => {
+    renderDialog();
+    const focusable = getFocusable();
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    first.focus();
+    expect(document.activeElement).toBe(first);
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    fireEvent.keyDown(overlay, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  it("pulls focus into the dialog when Tab arrives from outside", () => {
+    const outside = document.createElement("button");
+    outside.textContent = "outside";
+    document.body.appendChild(outside);
+    try {
+      renderDialog();
+      outside.focus();
+      expect(document.activeElement).toBe(outside);
+      const overlay = document.querySelector(
+        '[role="alertdialog"]',
+      ) as HTMLElement;
+      fireEvent.keyDown(overlay, { key: "Tab" });
+      const focusable = getFocusable();
+      expect(document.activeElement).toBe(focusable[0]);
+    } finally {
+      outside.remove();
+    }
+  });
+
+  it("does not interfere with non-Tab keys", () => {
+    renderDialog();
+    const focusable = getFocusable();
+    const first = focusable[0]!;
+    first.focus();
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    fireEvent.keyDown(overlay, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(first);
+  });
+});
+
+describe("Phase 9 web: DeathAvoidanceDialog focus trap", () => {
+  function makeChar(): Character {
+    return {
+      id: "me",
+      name: "me",
+      player_id: "p1",
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 1,
+      mp: 10,
+      mobility: 4,
+      evasion_dice: 3,
+      max_evasion_dice: 3,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: { katashiro: 5 },
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+    useGameStore.setState({
+      gameState: { characters: [makeChar()] },
+      myPlayerId: "p1",
+    } as never);
+  });
+
+  afterEach(() => {
+    usePendingStore.getState().setDeathAvoidanceRequest(null);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  function renderDialog() {
+    usePendingStore.getState().setDeathAvoidanceRequest({
+      pending_id: "p",
+      target_character_id: "me",
+      target_player_id: "p1",
+      incoming_damage: 10,
+      damage_type: "physical",
+      katashiro_required: 2,
+      katashiro_remaining: 5,
+      deadline_seconds: 30,
+    });
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(DeathAvoidanceDialog, { onSubmit: vi.fn() }),
+      ),
+    );
+  }
+
+  function getFocusable(): HTMLElement[] {
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    return Array.from(
+      overlay.querySelectorAll<HTMLElement>(
+        "button, input, select, textarea, [tabindex]:not([tabindex='-1'])",
+      ),
+    ).filter((n) => !(n as HTMLButtonElement | HTMLInputElement).disabled);
+  }
+
+  it("wraps Tab on the submit button back to the first focusable element", () => {
+    renderDialog();
+    const focusable = getFocusable();
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    last.focus();
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    fireEvent.keyDown(overlay, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+  });
+
+  it("wraps Shift+Tab from the first radio back to the submit button", () => {
+    renderDialog();
+    const focusable = getFocusable();
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    first.focus();
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    fireEvent.keyDown(overlay, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+});
