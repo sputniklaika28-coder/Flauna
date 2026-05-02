@@ -20,6 +20,7 @@ import {
 import { usePhaseBgm } from "../hooks/usePhaseBgm";
 import { useTurnStartSe } from "../hooks/useTurnStartSe";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import { useReconnectToast } from "../hooks/useReconnectToast";
 import {
   useGameStore,
   useChatStore,
@@ -359,6 +360,7 @@ export default function Room() {
   useTurnStartSe(gameState, myPlayerId);
 
   const online = useOnlineStatus();
+  useReconnectToast(online);
   const prevOnlineRef = useRef<boolean>(online);
   useEffect(() => {
     const wasOnline = prevOnlineRef.current;

@@ -29,8 +29,9 @@ import AudioSettings from "../../src/components/common/AudioSettings";
 import { usePhaseBgm } from "../../src/hooks/usePhaseBgm";
 import { useTurnStartSe } from "../../src/hooks/useTurnStartSe";
 import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
+import { useReconnectToast } from "../../src/hooks/useReconnectToast";
 import Header from "../../src/components/layout/Header";
-import { useGameStore, usePendingStore } from "../../src/stores";
+import { useGameStore, usePendingStore, useToastStore } from "../../src/stores";
 import QuickActionBar from "../../src/components/action/QuickActionBar";
 import ChatPanel from "../../src/components/chat/ChatPanel";
 import { useChatStore } from "../../src/stores";
@@ -71,6 +72,13 @@ describe("Phase 9 web: i18n keys", () => {
   it("ja and en expose the room.submitting indicator key", () => {
     expect(ja).toHaveProperty("room.submitting");
     expect(en).toHaveProperty("room.submitting");
+  });
+
+  it("ja and en expose the reconnection notice keys", () => {
+    expect(ja).toHaveProperty("room.notice.reconnecting");
+    expect(ja).toHaveProperty("room.notice.reconnected");
+    expect(en).toHaveProperty("room.notice.reconnecting");
+    expect(en).toHaveProperty("room.notice.reconnected");
   });
 
   it("ja and en still have identical key sets after Phase 9", () => {
@@ -928,5 +936,123 @@ describe("Phase 9 web: ChatPanel sticky scroll", () => {
       fireEvent.click(btn);
     });
     expect(screen.queryByTestId("chatpanel-jump-to-latest")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useReconnectToast — surfaces §9-3 reconnection UX
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: useReconnectToast hook", () => {
+  function ReconnectHarness({ online }: { online: boolean }) {
+    useReconnectToast(online);
+    return null;
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useGameStore.setState({ connectionStatus: "CONNECTING" } as never);
+    useToastStore.setState({ toasts: [] });
+  });
+
+  afterEach(() => {
+    useGameStore.setState({ connectionStatus: "DISCONNECTED" } as never);
+    useToastStore.setState({ toasts: [] });
+  });
+
+  function renderHarness(online: boolean) {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ReconnectHarness, { online }),
+      ),
+    );
+  }
+
+  it("does not toast on the initial CONNECTING → ACTIVE handshake", () => {
+    const { rerender } = renderHarness(true);
+    act(() => {
+      useGameStore.setState({ connectionStatus: "AUTHENTICATING" } as never);
+    });
+    rerender(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ReconnectHarness, { online: true }),
+      ),
+    );
+    act(() => {
+      useGameStore.setState({ connectionStatus: "ACTIVE" } as never);
+    });
+    rerender(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ReconnectHarness, { online: true }),
+      ),
+    );
+    expect(useToastStore.getState().toasts).toEqual([]);
+  });
+
+  it("pushes a reconnecting toast when ACTIVE → DISCONNECTED while online", () => {
+    useGameStore.setState({ connectionStatus: "ACTIVE" } as never);
+    renderHarness(true);
+    act(() => {
+      useGameStore.setState({ connectionStatus: "DISCONNECTED" } as never);
+    });
+    const toasts = useToastStore.getState().toasts;
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]?.message).toBe(ja["room.notice.reconnecting"]);
+    expect(toasts[0]?.severity).toBe("warn");
+  });
+
+  it("pushes a reconnected toast once ACTIVE is reached after a drop", () => {
+    useGameStore.setState({ connectionStatus: "ACTIVE" } as never);
+    const { rerender } = renderHarness(true);
+    act(() => {
+      useGameStore.setState({ connectionStatus: "DISCONNECTED" } as never);
+    });
+    rerender(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ReconnectHarness, { online: true }),
+      ),
+    );
+    act(() => {
+      useGameStore.setState({ connectionStatus: "AUTHENTICATING" } as never);
+    });
+    rerender(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ReconnectHarness, { online: true }),
+      ),
+    );
+    act(() => {
+      useGameStore.setState({ connectionStatus: "ACTIVE" } as never);
+    });
+    const messages = useToastStore.getState().toasts.map((t) => t.message);
+    expect(messages).toContain(ja["room.notice.reconnecting"]);
+    expect(messages).toContain(ja["room.notice.reconnected"]);
+  });
+
+  it("suppresses the reconnecting toast while offline", () => {
+    useGameStore.setState({ connectionStatus: "ACTIVE" } as never);
+    renderHarness(false);
+    act(() => {
+      useGameStore.setState({ connectionStatus: "DISCONNECTED" } as never);
+    });
+    expect(useToastStore.getState().toasts).toEqual([]);
+  });
+
+  it("does not toast on transitions into SESSION_LOST", () => {
+    useGameStore.setState({ connectionStatus: "ACTIVE" } as never);
+    renderHarness(true);
+    act(() => {
+      useGameStore.setState({ connectionStatus: "SESSION_LOST" } as never);
+    });
+    expect(useToastStore.getState().toasts).toEqual([]);
   });
 });
