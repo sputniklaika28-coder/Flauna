@@ -31,7 +31,8 @@ import { useTurnStartSe } from "../../src/hooks/useTurnStartSe";
 import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import { useReconnectToast } from "../../src/hooks/useReconnectToast";
 import Header from "../../src/components/layout/Header";
-import { useGameStore, usePendingStore, useToastStore } from "../../src/stores";
+import AiThinkingIndicator from "../../src/components/common/AiThinkingIndicator";
+import { useGameStore, usePendingStore, useToastStore, useUIStore } from "../../src/stores";
 import QuickActionBar from "../../src/components/action/QuickActionBar";
 import ChatPanel from "../../src/components/chat/ChatPanel";
 import { useChatStore } from "../../src/stores";
@@ -1054,5 +1055,76 @@ describe("Phase 9 web: useReconnectToast hook", () => {
       useGameStore.setState({ connectionStatus: "SESSION_LOST" } as never);
     });
     expect(useToastStore.getState().toasts).toEqual([]);
+  });
+});
+
+describe("Phase 9 web: AiThinkingIndicator (§9-2)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useUIStore.getState().clearAiThinking();
+    useGameStore.setState({ gameState: null } as never);
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    useUIStore.getState().clearAiThinking();
+    useGameStore.setState({ gameState: null } as never);
+  });
+
+  function renderIndicator() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(AiThinkingIndicator),
+      ),
+    );
+  }
+
+  it("renders nothing when aiThinking is null", () => {
+    renderIndicator();
+    expect(screen.queryByTestId("ai-thinking-indicator")).toBeNull();
+  });
+
+  it("shows the GM thinking banner with the localized stage label", () => {
+    useUIStore.getState().setAiThinking("deciding_action", null);
+    renderIndicator();
+    const banner = screen.getByTestId("ai-thinking-indicator");
+    expect(banner).toBeTruthy();
+    expect(banner.textContent).toContain(ja["room.ai.thinking"]);
+    expect(banner.textContent).toContain(ja["room.ai.stage.deciding_action"]);
+  });
+
+  it("shows the actor name when the message includes one", () => {
+    useGameStore.setState({
+      gameState: {
+        characters: [
+          { id: "enemy1", name: "鬼A", player_id: null } as unknown as Character,
+        ],
+      },
+    } as never);
+    useUIStore.getState().setAiThinking("deciding_action", "enemy1");
+    renderIndicator();
+    expect(screen.getByTestId("ai-thinking-actor").textContent).toBe("鬼A");
+  });
+
+  it("auto-clears after 10 seconds", () => {
+    useUIStore.getState().setAiThinking("narrating", null);
+    renderIndicator();
+    expect(screen.queryByTestId("ai-thinking-indicator")).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(useUIStore.getState().aiThinking).toBeNull();
+    expect(screen.queryByTestId("ai-thinking-indicator")).toBeNull();
+  });
+
+  it("falls back to the raw stage string for unknown stages", () => {
+    useUIStore.getState().setAiThinking("custom_stage", null);
+    renderIndicator();
+    expect(screen.getByTestId("ai-thinking-indicator").textContent).toContain(
+      "custom_stage",
+    );
   });
 });

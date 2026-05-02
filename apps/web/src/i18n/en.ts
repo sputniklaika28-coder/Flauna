@@ -38,6 +38,8 @@ const en = {
   "room.evasion.submit": "Submit",
   "room.evasion.timeLeft": "{{s}}s left",
   "room.ai.thinking": "GM is thinking…",
+  "room.ai.stage.deciding_action": "Deciding action",
+  "room.ai.stage.narrating": "Generating narrative",
   "room.ai.fallback": "AI fallback: {{reason}}",
   "room.contextMenu.attack": "Attack",
   "room.contextMenu.detailAttack": "Detail Attack",

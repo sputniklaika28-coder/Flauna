@@ -38,6 +38,8 @@ const ja = {
   "room.evasion.submit": "送信",
   "room.evasion.timeLeft": "残り {{s}} 秒",
   "room.ai.thinking": "GMが考えています…",
+  "room.ai.stage.deciding_action": "行動を決定中",
+  "room.ai.stage.narrating": "描写を生成中",
   "room.ai.fallback": "AIフォールバック: {{reason}}",
   "room.contextMenu.attack": "攻撃する",
   "room.contextMenu.detailAttack": "詳細攻撃",
