@@ -24,6 +24,7 @@ import i18n, {
 import ja from "../../src/i18n/ja";
 import en from "../../src/i18n/en";
 import LanguageSwitcher from "../../src/components/common/LanguageSwitcher";
+import { useUIStore } from "../../src/stores";
 import {
   PLAYER_NAME_KEY,
   SESSION_KEY_PREFIX,
@@ -204,5 +205,51 @@ describe("Phase 8 web: LanguageSwitcher component", () => {
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe("en");
 
     await i18n.changeLanguage("ja");
+  });
+});
+
+describe("Phase 8 web: mobile layout toggles", () => {
+  beforeEach(() => {
+    useUIStore.setState({ sideMenuOpen: false, chatPanelOpen: false });
+  });
+
+  it("toggleSideMenu opens the side menu and closes the chat panel", () => {
+    useUIStore.setState({ chatPanelOpen: true });
+    useUIStore.getState().toggleSideMenu();
+    expect(useUIStore.getState().sideMenuOpen).toBe(true);
+    expect(useUIStore.getState().chatPanelOpen).toBe(false);
+  });
+
+  it("toggleChatPanel opens the chat panel and closes the side menu", () => {
+    useUIStore.setState({ sideMenuOpen: true });
+    useUIStore.getState().toggleChatPanel();
+    expect(useUIStore.getState().chatPanelOpen).toBe(true);
+    expect(useUIStore.getState().sideMenuOpen).toBe(false);
+  });
+
+  it("toggleSideMenu twice returns to closed", () => {
+    useUIStore.getState().toggleSideMenu();
+    useUIStore.getState().toggleSideMenu();
+    expect(useUIStore.getState().sideMenuOpen).toBe(false);
+  });
+
+  it("closeMobilePanels clears both flags", () => {
+    useUIStore.setState({ sideMenuOpen: true, chatPanelOpen: true });
+    useUIStore.getState().closeMobilePanels();
+    expect(useUIStore.getState().sideMenuOpen).toBe(false);
+    expect(useUIStore.getState().chatPanelOpen).toBe(false);
+  });
+
+  it("ja and en define mobile-layout i18n keys", () => {
+    const keys = [
+      "room.mobile.toggleSideMenu",
+      "room.mobile.toggleChatPanel",
+      "room.mobile.closeSideMenu",
+      "room.mobile.closeChatPanel",
+    ];
+    for (const k of keys) {
+      expect(ja).toHaveProperty(k);
+      expect(en).toHaveProperty(k);
+    }
   });
 });

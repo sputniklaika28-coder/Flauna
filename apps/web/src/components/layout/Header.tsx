@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useGameStore } from "../../stores";
+import { useGameStore, useUIStore } from "../../stores";
 import { AudioSettings, LanguageSwitcher } from "../common";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -13,6 +13,8 @@ const STATUS_COLORS: Record<string, string> = {
 export default function Header() {
   const { t } = useTranslation();
   const { gameState, connectionStatus, myPlayerId } = useGameStore();
+  const toggleSideMenu = useUIStore((s) => s.toggleSideMenu);
+  const toggleChatPanel = useUIStore((s) => s.toggleChatPanel);
 
   const phaseKey = gameState
     ? (`room.phase.${gameState.phase}` as const)
@@ -25,10 +27,23 @@ export default function Header() {
   const showMp = !!myPc && myPc.max_mp > 0;
 
   return (
-    <header className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white text-sm">
-      <span className="font-bold">{t("app.name")}</span>
+    <header className="flex items-center justify-between gap-2 px-2 sm:px-4 py-2 bg-gray-900 text-white text-sm flex-wrap">
+      <div className="flex items-center gap-2 min-w-0">
+        {gameState && (
+          <button
+            type="button"
+            onClick={toggleSideMenu}
+            aria-label={t("room.mobile.toggleSideMenu")}
+            data-testid="toggle-sidemenu"
+            className="lg:hidden p-1 rounded hover:bg-gray-700"
+          >
+            ☰
+          </button>
+        )}
+        <span className="font-bold truncate">{t("app.name")}</span>
+      </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
         {gameState && (
           <>
             <span>{t("room.round", { n: gameState.round_number })}</span>
@@ -75,6 +90,17 @@ export default function Header() {
         </span>
         <AudioSettings />
         <LanguageSwitcher />
+        {gameState && (
+          <button
+            type="button"
+            onClick={toggleChatPanel}
+            aria-label={t("room.mobile.toggleChatPanel")}
+            data-testid="toggle-chatpanel"
+            className="lg:hidden p-1 rounded hover:bg-gray-700"
+          >
+            💬
+          </button>
+        )}
       </div>
     </header>
   );

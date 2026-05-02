@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useGameStore } from "../../stores";
+import { useGameStore, useUIStore } from "../../stores";
 import type { Character, PressureLevel } from "../../types";
 
 const PRESSURE_BG: Record<PressureLevel, string> = {
@@ -79,6 +79,8 @@ function CharCard({ char, isCurrent }: { char: Character; isCurrent: boolean }) 
 export default function SideMenu() {
   const { t } = useTranslation();
   const { gameState, myPlayerId } = useGameStore();
+  const sideMenuOpen = useUIStore((s) => s.sideMenuOpen);
+  const closeMobilePanels = useUIStore((s) => s.closeMobilePanels);
 
   if (!gameState) return null;
 
@@ -92,7 +94,24 @@ export default function SideMenu() {
   const others = characters.filter((c) => c.player_id !== myPlayerId);
 
   return (
-    <aside className="w-52 bg-gray-900 text-white p-2 overflow-y-auto flex-shrink-0">
+    <>
+      {sideMenuOpen && (
+        <button
+          type="button"
+          aria-label={t("room.mobile.closeSideMenu")}
+          onClick={closeMobilePanels}
+          className="lg:hidden fixed inset-0 z-30 bg-black/50"
+          data-testid="sidemenu-backdrop"
+        />
+      )}
+      <aside
+        data-testid="sidemenu"
+        className={`w-52 bg-gray-900 text-white p-2 overflow-y-auto flex-shrink-0
+          lg:relative lg:translate-x-0 lg:block
+          fixed inset-y-0 left-0 z-40 transition-transform
+          ${sideMenuOpen ? "translate-x-0" : "-translate-x-full"}
+          lg:transform-none`}
+      >
       {myChars.map((c) => (
         <CharCard key={c.id} char={c} isCurrent={c.id === currentActorId} />
       ))}
@@ -165,6 +184,7 @@ export default function SideMenu() {
           </div>
         </div>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }

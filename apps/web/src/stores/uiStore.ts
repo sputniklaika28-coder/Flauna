@@ -37,6 +37,9 @@ interface UIStore {
   castArtTargetId: string | null;
   /** Active cast-art cutscene overlay (Phase 5 演出). */
   castArtCutscene: CastArtCutscene | null;
+  /** Phase 8: side panel visibility on narrow screens (md and below). */
+  sideMenuOpen: boolean;
+  chatPanelOpen: boolean;
 
   setMapZoom: (zoom: number) => void;
   setSelectedChar: (id: string | null) => void;
@@ -51,6 +54,9 @@ interface UIStore {
   addDamageEvent: (event: DamageEvent) => void;
   removeDamageEvent: (id: string) => void;
   setCombatResult: (result: CombatResult) => void;
+  toggleSideMenu: () => void;
+  toggleChatPanel: () => void;
+  closeMobilePanels: () => void;
 }
 
 export const useUIStore = create<UIStore>()((set) => ({
@@ -64,6 +70,8 @@ export const useUIStore = create<UIStore>()((set) => ({
   actionDetailTargetId: null,
   castArtTargetId: null,
   castArtCutscene: null,
+  sideMenuOpen: false,
+  chatPanelOpen: false,
 
   setMapZoom: (zoom) => set({ mapZoom: Math.min(64, Math.max(30, zoom)) }),
   setSelectedChar: (id) => set({ selectedCharId: id }),
@@ -84,4 +92,9 @@ export const useUIStore = create<UIStore>()((set) => ({
   removeDamageEvent: (id) =>
     set((s) => ({ damageEvents: s.damageEvents.filter((e) => e.id !== id) })),
   setCombatResult: (result) => set({ combatResult: result }),
+  toggleSideMenu: () =>
+    set((s) => ({ sideMenuOpen: !s.sideMenuOpen, chatPanelOpen: false })),
+  toggleChatPanel: () =>
+    set((s) => ({ chatPanelOpen: !s.chatPanelOpen, sideMenuOpen: false })),
+  closeMobilePanels: () => set({ sideMenuOpen: false, chatPanelOpen: false }),
 }));
