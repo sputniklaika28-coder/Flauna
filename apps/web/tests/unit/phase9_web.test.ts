@@ -13,6 +13,7 @@ import {
   fireEvent,
   cleanup,
   act,
+  waitFor,
 } from "@testing-library/react";
 import React from "react";
 import i18n from "../../src/i18n/index";
@@ -1499,5 +1500,300 @@ describe("Phase 9 web: DeathAvoidanceDialog deadline urgency", () => {
       .querySelector("button[class*='bg-red-700']") as HTMLButtonElement;
     fireEvent.click(submit);
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Interrupt dialog keyboard + a11y (§17-1, §16 alarm-driven UX)
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: EvasionDialog keyboard + a11y", () => {
+  function makeChar(id: string, playerId: string | null): Character {
+    return {
+      id,
+      name: id,
+      player_id: playerId,
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 4,
+      evasion_dice: 3,
+      max_evasion_dice: 3,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+    useGameStore.setState({
+      gameState: {
+        characters: [makeChar("me", "p1"), makeChar("foe", null)],
+      },
+      myPlayerId: "p1",
+    } as never);
+    usePendingStore.getState().setEvasionRequest(null);
+  });
+
+  afterEach(() => {
+    usePendingStore.getState().setEvasionRequest(null);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  function renderDialog(onSubmit = vi.fn()) {
+    const utils = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(EvasionDialog, { onSubmit }),
+      ),
+    );
+    return { ...utils, onSubmit };
+  }
+
+  it("declares alertdialog role with aria-modal and aria-labelledby", () => {
+    usePendingStore.getState().setEvasionRequest({
+      pending_id: "p",
+      attacker_id: "foe",
+      target_id: "me",
+      deadline_seconds: 30,
+    });
+    renderDialog();
+    const overlay = document.querySelector('[role="alertdialog"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.getAttribute("aria-modal")).toBe("true");
+    const labelId = overlay?.getAttribute("aria-labelledby");
+    expect(labelId).toBe("evasion-dialog-title");
+    expect(document.getElementById(labelId!)).not.toBeNull();
+  });
+
+  it("autofocuses the submit button on open", async () => {
+    usePendingStore.getState().setEvasionRequest({
+      pending_id: "p",
+      attacker_id: "foe",
+      target_id: "me",
+      deadline_seconds: 30,
+    });
+    renderDialog();
+    const submit = screen.getByTestId("evasion-submit");
+    await waitFor(() => expect(document.activeElement).toBe(submit));
+  });
+
+  it("submits on Enter while the deadline is live", () => {
+    usePendingStore.getState().setEvasionRequest({
+      pending_id: "pend1",
+      attacker_id: "foe",
+      target_id: "me",
+      deadline_seconds: 30,
+    });
+    const { onSubmit } = renderDialog();
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    fireEvent.keyDown(overlay, { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith("pend1", 0);
+  });
+
+  it("ignores Enter once the deadline has expired", () => {
+    vi.useFakeTimers();
+    try {
+      usePendingStore.getState().setEvasionRequest({
+        pending_id: "p",
+        attacker_id: "foe",
+        target_id: "me",
+        deadline_seconds: 1,
+      });
+      const { onSubmit } = renderDialog();
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      const overlay = document.querySelector(
+        '[role="alertdialog"]',
+      ) as HTMLElement;
+      fireEvent.keyDown(overlay, { key: "Enter" });
+      expect(onSubmit).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores Enter when modifier keys are held", () => {
+    usePendingStore.getState().setEvasionRequest({
+      pending_id: "p",
+      attacker_id: "foe",
+      target_id: "me",
+      deadline_seconds: 30,
+    });
+    const { onSubmit } = renderDialog();
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    fireEvent.keyDown(overlay, { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(overlay, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(overlay, { key: "Enter", metaKey: true });
+    fireEvent.keyDown(overlay, { key: "Enter", altKey: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe("Phase 9 web: DeathAvoidanceDialog keyboard + a11y", () => {
+  function makeChar(): Character {
+    return {
+      id: "me",
+      name: "me",
+      player_id: "p1",
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 1,
+      mp: 10,
+      mobility: 4,
+      evasion_dice: 3,
+      max_evasion_dice: 3,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: { katashiro: 5 },
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+    useGameStore.setState({
+      gameState: { characters: [makeChar()] },
+      myPlayerId: "p1",
+    } as never);
+    usePendingStore.getState().setDeathAvoidanceRequest(null);
+  });
+
+  afterEach(() => {
+    usePendingStore.getState().setDeathAvoidanceRequest(null);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  function renderDialog(onSubmit = vi.fn()) {
+    const utils = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(DeathAvoidanceDialog, { onSubmit }),
+      ),
+    );
+    return { ...utils, onSubmit };
+  }
+
+  it("declares alertdialog role with aria-modal and aria-labelledby", () => {
+    usePendingStore.getState().setDeathAvoidanceRequest({
+      pending_id: "p",
+      target_character_id: "me",
+      target_player_id: "p1",
+      incoming_damage: 10,
+      damage_type: "physical",
+      katashiro_required: 2,
+      katashiro_remaining: 5,
+      deadline_seconds: 30,
+    });
+    renderDialog();
+    const overlay = document.querySelector('[role="alertdialog"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.getAttribute("aria-modal")).toBe("true");
+    expect(overlay?.getAttribute("aria-labelledby")).toBe(
+      "death-avoidance-dialog-title",
+    );
+    expect(document.getElementById("death-avoidance-dialog-title")).not.toBeNull();
+  });
+
+  it("autofocuses the submit button on open", async () => {
+    usePendingStore.getState().setDeathAvoidanceRequest({
+      pending_id: "p",
+      target_character_id: "me",
+      target_player_id: "p1",
+      incoming_damage: 10,
+      damage_type: "physical",
+      katashiro_required: 2,
+      katashiro_remaining: 5,
+      deadline_seconds: 30,
+    });
+    renderDialog();
+    const submit = screen.getByTestId("death-avoidance-submit");
+    await waitFor(() => expect(document.activeElement).toBe(submit));
+  });
+
+  it("submits the current choice on Enter", () => {
+    usePendingStore.getState().setDeathAvoidanceRequest({
+      pending_id: "pend1",
+      target_character_id: "me",
+      target_player_id: "p1",
+      incoming_damage: 10,
+      damage_type: "physical",
+      katashiro_required: 2,
+      katashiro_remaining: 5,
+      deadline_seconds: 30,
+    });
+    const { onSubmit } = renderDialog();
+    const overlay = document.querySelector(
+      '[role="alertdialog"]',
+    ) as HTMLElement;
+    fireEvent.keyDown(overlay, { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit).toHaveBeenCalledWith("pend1", "avoid_death");
+  });
+
+  it("ignores Enter once the deadline has expired", () => {
+    vi.useFakeTimers();
+    try {
+      usePendingStore.getState().setDeathAvoidanceRequest({
+        pending_id: "p",
+        target_character_id: "me",
+        target_player_id: "p1",
+        incoming_damage: 10,
+        damage_type: "physical",
+        katashiro_required: 2,
+        katashiro_remaining: 5,
+        deadline_seconds: 1,
+      });
+      const { onSubmit } = renderDialog();
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      const overlay = document.querySelector(
+        '[role="alertdialog"]',
+      ) as HTMLElement;
+      fireEvent.keyDown(overlay, { key: "Enter" });
+      expect(onSubmit).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

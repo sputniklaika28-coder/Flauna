@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, usePendingStore } from "../../stores";
 import { useDeadlineUrgency } from "../../hooks/useDeadlineUrgency";
@@ -12,21 +12,39 @@ export default function EvasionDialog({ onSubmit }: Props) {
   const evasionRequest = usePendingStore((s) => s.evasionRequest);
   const { gameState, myPlayerId } = useGameStore();
   const [usedDice, setUsedDice] = useState(0);
+  // Reset the timer in render whenever a new pending arrives so the very first
+  // paint already shows the live deadline (and leaves submit enabled, so
+  // autofocus can take effect).
+  const [trackedPendingId, setTrackedPendingId] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const focusedOnceRef = useRef(false);
+  const currentPendingId = evasionRequest?.pending_id ?? null;
+  if (currentPendingId !== trackedPendingId) {
+    setTrackedPendingId(currentPendingId);
+    setSecondsLeft(evasionRequest?.deadline_seconds ?? 0);
+    setUsedDice(0);
+    focusedOnceRef.current = false;
+  }
 
   const myChar = gameState?.characters.find((c) => c.player_id === myPlayerId);
 
   useEffect(() => {
     if (!evasionRequest) return;
-    setSecondsLeft(evasionRequest.deadline_seconds);
-    setUsedDice(0);
-
     const id = setInterval(
       () => setSecondsLeft((s) => Math.max(0, s - 1)),
       1000,
     );
     return () => clearInterval(id);
   }, [evasionRequest]);
+
+  // Callback ref so focus runs the moment the button mounts — critical once the
+  // §16 alarm band kicks in and the player needs Enter to submit without a mouse.
+  const submitRef = useCallback((node: HTMLButtonElement | null) => {
+    if (node && !focusedOnceRef.current) {
+      focusedOnceRef.current = true;
+      node.focus();
+    }
+  }, []);
 
   const urgency = useDeadlineUrgency(secondsLeft, evasionRequest !== null);
 
@@ -40,6 +58,16 @@ export default function EvasionDialog({ onSubmit }: Props) {
   const handleSubmit = () => {
     if (urgency.isExpired) return;
     onSubmit(evasionRequest.pending_id, usedDice);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+      return;
+    }
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "TEXTAREA" || tag === "SELECT") return;
+    e.preventDefault();
+    handleSubmit();
   };
 
   const borderClass = urgency.isExpired
@@ -58,12 +86,21 @@ export default function EvasionDialog({ onSubmit }: Props) {
         : "text-gray-400";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="evasion-dialog-title"
+      onKeyDown={handleKeyDown}
+    >
       <div
         data-testid="evasion-dialog"
         className={`bg-gray-900 border rounded-lg p-6 w-80 text-white ${borderClass}`}
       >
-        <h2 className="text-lg font-bold text-yellow-400 mb-4">
+        <h2
+          id="evasion-dialog-title"
+          className="text-lg font-bold text-yellow-400 mb-4"
+        >
           {t("room.evasion.title")}
         </h2>
 
@@ -127,6 +164,8 @@ export default function EvasionDialog({ onSubmit }: Props) {
         </div>
 
         <button
+          ref={submitRef}
+          data-testid="evasion-submit"
           onClick={handleSubmit}
           disabled={urgency.isExpired}
           className="w-full bg-yellow-600 hover:bg-yellow-500 text-white rounded py-2 font-semibold disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
