@@ -18,8 +18,11 @@ import {
   useChatStore,
   useUIStore,
   usePendingStore,
+  useToastStore,
 } from "../stores";
+import { actionForError, messageForError } from "../utils";
 import { Header, SideMenu } from "../components/layout";
+import { ToastContainer } from "../components/common";
 import { ChatPanel } from "../components/chat";
 import { GameMap, ContextMenu } from "../components/map";
 import { QuickActionBar, ActionDetailModal } from "../components/action";
@@ -65,6 +68,7 @@ export default function Room() {
     setCombatResult,
   } = useUIStore();
   const { setEvasionRequest, setDeathAvoidanceRequest } = usePendingStore();
+  const pushToast = useToastStore((s) => s.pushToast);
 
   // Track previous HP values to detect damage for popups
   const prevHpRef = useRef<Record<string, number>>({});
@@ -206,7 +210,16 @@ export default function Room() {
           break;
         }
         case "error": {
+          const action = actionForError(msg.code);
           addEntry("system", `エラー: ${msg.code} — ${msg.message}`);
+          if (action.kind === "silent") break;
+          const localized = messageForError(t, msg.code);
+          pushToast({ message: localized, severity: action.severity });
+          if (action.kind === "navigate") {
+            if (roomId) clearSession(roomId);
+            wsRef.current?.close();
+            navigate("/");
+          }
           break;
         }
       }
@@ -222,6 +235,9 @@ export default function Room() {
       addDamageEvent,
       setCombatResult,
       triggerCastArtCutscene,
+      pushToast,
+      navigate,
+      roomId,
       t,
     ],
   );
@@ -514,6 +530,7 @@ export default function Room() {
           navigate("/");
         }}
       />
+      <ToastContainer />
     </div>
   );
 }
