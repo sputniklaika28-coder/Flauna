@@ -110,7 +110,7 @@ export default function Room() {
           const state = msg.current_state as unknown as GameState;
           applyStateFull(state);
           setConnectionStatus("ACTIVE");
-          addEntry("system", "セッション復元");
+          addEntry("system", t("room.system.sessionRestored"));
           // Seed initial HP tracking
           const hpMap: Record<string, number> = {};
           state.characters.forEach((c) => { hpMap[c.id] = c.hp; });
@@ -162,7 +162,14 @@ export default function Room() {
             if (outcome === "victory" || outcome === "defeat") {
               setCombatResult(outcome);
               playSe(outcome);
-              addEntry("system", outcome === "victory" ? "戦闘終了: 勝利！" : "戦闘終了: 敗北…");
+              addEntry(
+                "system",
+                t(
+                  outcome === "victory"
+                    ? "room.system.combatVictory"
+                    : "room.system.combatDefeat",
+                ),
+              );
             }
           } else if (msg.event_name === "combat_pressure_escalated") {
             playSe("escalation");
@@ -189,10 +196,16 @@ export default function Room() {
                 casterName: caster?.name ?? p.caster_id,
               });
               playSe("cast_art");
-              addEntry("system", `『${p.art_name}』が放たれた！`);
+              addEntry(
+                "system",
+                t("room.system.artCastByOther", { art: p.art_name }),
+              );
             }
           } else {
-            addEntry("system", `[${msg.event_name}]`);
+            addEntry(
+              "system",
+              t("room.system.event", { name: msg.event_name }),
+            );
           }
           break;
         }
@@ -245,17 +258,26 @@ export default function Room() {
           break;
         }
         case "ai_fallback_notice": {
-          addEntry("system", `[AI fallback] ${msg.reason}`);
+          addEntry(
+            "system",
+            t("room.system.aiFallback", { reason: msg.reason }),
+          );
           break;
         }
         case "session_lost": {
           setConnectionStatus("SESSION_LOST");
-          addEntry("system", `セッション切断: ${msg.reason}`);
+          addEntry(
+            "system",
+            t("room.system.sessionDisconnected", { reason: msg.reason }),
+          );
           break;
         }
         case "error": {
           const action = actionForError(msg.code);
-          addEntry("system", `エラー: ${msg.code} — ${msg.message}`);
+          addEntry(
+            "system",
+            t("room.system.error", { code: msg.code, message: msg.message }),
+          );
           if (msg.code === "VERSION_MISMATCH") {
             const ok = resubmitWithCurrentVersion({
               send: (p) => wsRef.current?.send(p),
@@ -569,9 +591,12 @@ export default function Room() {
         artName: payload.art_name,
         casterName: myChar.name,
       });
-      addEntry("system", `『${payload.art_name}』を発動！`);
+      addEntry(
+        "system",
+        t("room.system.artCastSelf", { art: payload.art_name }),
+      );
     },
-    [gameState, myPlayerId, sendTurnAction, triggerCastArtCutscene, addEntry],
+    [gameState, myPlayerId, sendTurnAction, triggerCastArtCutscene, addEntry, t],
   );
 
   const handleCharRightClick = useCallback(

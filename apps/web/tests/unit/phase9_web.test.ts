@@ -82,6 +82,24 @@ describe("Phase 9 web: i18n keys", () => {
     expect(en).toHaveProperty("room.notice.reconnected");
   });
 
+  it("ja and en expose the system chat message keys", () => {
+    const keys = [
+      "room.system.sessionRestored",
+      "room.system.sessionDisconnected",
+      "room.system.combatVictory",
+      "room.system.combatDefeat",
+      "room.system.artCastByOther",
+      "room.system.artCastSelf",
+      "room.system.event",
+      "room.system.aiFallback",
+      "room.system.error",
+    ] as const;
+    for (const k of keys) {
+      expect(ja).toHaveProperty(k);
+      expect(en).toHaveProperty(k);
+    }
+  });
+
   it("ja and en still have identical key sets after Phase 9", () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(ja).sort());
   });

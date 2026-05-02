@@ -159,6 +159,15 @@ const en = {
   "room.notice.reconnected": "Reconnected to the server",
   "room.submitting": "Submitting…",
   "room.chat.jumpToLatest": "{{n}} new ↓",
+  "room.system.sessionRestored": "Session restored",
+  "room.system.sessionDisconnected": "Session ended: {{reason}}",
+  "room.system.combatVictory": "Combat ended: Victory!",
+  "room.system.combatDefeat": "Combat ended: Defeat…",
+  "room.system.artCastByOther": "“{{art}}” has been unleashed!",
+  "room.system.artCastSelf": "Cast “{{art}}”!",
+  "room.system.event": "[{{name}}]",
+  "room.system.aiFallback": "[AI fallback] {{reason}}",
+  "room.system.error": "Error: {{code}} — {{message}}",
 } as const;
 
 export default en;
