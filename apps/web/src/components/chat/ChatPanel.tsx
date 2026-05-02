@@ -32,24 +32,68 @@ interface Props {
   onSendStatement: (text: string) => void;
 }
 
+const STICKY_THRESHOLD_PX = 32;
+
 export default function ChatPanel({ onSendStatement }: Props) {
   const { t } = useTranslation();
   const entries = useChatStore((s) => s.entries);
   const { gameState } = useGameStore();
   const chatPanelOpen = useUIStore((s) => s.chatPanelOpen);
   const closeMobilePanels = useUIStore((s) => s.closeMobilePanels);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const stickToBottomRef = useRef(true);
   const [input, setInput] = useState("");
+  const [unreadCount, setUnreadCount] = useState(0);
+  const lastSeenIdRef = useRef<string | null>(null);
+
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    bottomRef.current?.scrollIntoView({ behavior });
+    stickToBottomRef.current = true;
+    setUnreadCount(0);
+    lastSeenIdRef.current = entries[entries.length - 1]?.id ?? null;
+  };
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    const latest = entries[entries.length - 1];
+    if (!latest) {
+      lastSeenIdRef.current = null;
+      setUnreadCount(0);
+      return;
+    }
+    if (stickToBottomRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+      lastSeenIdRef.current = latest.id;
+      setUnreadCount(0);
+      return;
+    }
+    const lastSeen = lastSeenIdRef.current;
+    if (lastSeen === null) {
+      setUnreadCount(entries.length);
+      return;
+    }
+    const seenIdx = entries.findIndex((e) => e.id === lastSeen);
+    setUnreadCount(seenIdx === -1 ? entries.length : entries.length - 1 - seenIdx);
   }, [entries]);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const nearBottom = distanceFromBottom < STICKY_THRESHOLD_PX;
+    stickToBottomRef.current = nearBottom;
+    if (nearBottom) {
+      setUnreadCount(0);
+      lastSeenIdRef.current = entries[entries.length - 1]?.id ?? null;
+    }
+  };
 
   const handleSend = () => {
     const text = input.trim();
     if (!text || !gameState) return;
     onSendStatement(text);
     setInput("");
+    scrollToBottom();
   };
 
   return (
@@ -71,12 +115,28 @@ export default function ChatPanel({ onSendStatement }: Props) {
           ${chatPanelOpen ? "translate-x-0" : "translate-x-full"}
           lg:transform-none`}
       >
-      <div className="flex-1 overflow-y-auto p-3 space-y-1">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        data-testid="chatpanel-scroll"
+        className="flex-1 overflow-y-auto p-3 space-y-1 relative"
+      >
         {entries.map((e) => (
           <EntryRow key={e.id} entry={e} />
         ))}
         <div ref={bottomRef} />
       </div>
+
+      {unreadCount > 0 && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom()}
+          data-testid="chatpanel-jump-to-latest"
+          className="mx-2 mb-1 self-end text-xs bg-blue-600 hover:bg-blue-700 text-white rounded px-2 py-1 shadow"
+        >
+          {t("room.chat.jumpToLatest", { n: unreadCount })}
+        </button>
+      )}
 
       <div className="border-t border-gray-700 p-2 flex gap-2">
         <input

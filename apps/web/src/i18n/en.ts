@@ -154,6 +154,7 @@ const en = {
   "room.notice.offline": "Network connection lost. Will reconnect automatically once it returns",
   "room.notice.backOnline": "Network restored. Reconnecting…",
   "room.submitting": "Submitting…",
+  "room.chat.jumpToLatest": "{{n}} new ↓",
 } as const;
 
 export default en;
