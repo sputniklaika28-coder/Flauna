@@ -1,5 +1,7 @@
+import { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore } from "../../stores";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import type { Grade, GrowthProposal, SessionScore } from "../../types";
 
 interface Props {
@@ -26,10 +28,30 @@ function StatRow({ label, value }: { label: string; value: string | number }) {
 export default function AssessmentScreen({ onBackToLobby }: Props) {
   const { t } = useTranslation();
   const { gameState, myPlayerId } = useGameStore();
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const focusedOnceRef = useRef(false);
 
-  if (!gameState || gameState.phase !== "assessment") return null;
+  const isOpen =
+    gameState?.phase === "assessment" && !!gameState.assessment_result;
+
+  const buttonRef = useCallback((node: HTMLButtonElement | null) => {
+    if (node && !focusedOnceRef.current) {
+      focusedOnceRef.current = true;
+      node.focus();
+    }
+  }, []);
+
+  useFocusTrap(overlayRef, isOpen);
+
+  if (!gameState || gameState.phase !== "assessment") {
+    focusedOnceRef.current = false;
+    return null;
+  }
   const score: SessionScore | null | undefined = gameState.assessment_result;
-  if (!score) return null;
+  if (!score) {
+    focusedOnceRef.current = false;
+    return null;
+  }
 
   const isVictory = score.outcome === "victory";
   const gradeColor = GRADE_COLOR[score.grade];
@@ -46,10 +68,25 @@ export default function AssessmentScreen({ onBackToLobby }: Props) {
     gameState.characters.map((c) => [c.id, c.name] as const),
   );
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+      return;
+    }
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "TEXTAREA" || tag === "SELECT" || tag === "INPUT") return;
+    e.preventDefault();
+    onBackToLobby();
+  };
+
   return (
     <div
+      ref={overlayRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/85"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="assessment-screen-title"
       data-testid="assessment-screen"
+      onKeyDown={handleKeyDown}
     >
       <div className="bg-gray-900 rounded-xl p-8 w-[28rem] shadow-2xl border-2 border-gray-700">
         <div className="text-center mb-6">
@@ -57,6 +94,7 @@ export default function AssessmentScreen({ onBackToLobby }: Props) {
             {t("room.assessment.title")}
           </p>
           <h2
+            id="assessment-screen-title"
             className={`text-2xl font-bold mt-1 ${
               isVictory ? "text-yellow-300" : "text-red-400"
             }`}
@@ -132,6 +170,7 @@ export default function AssessmentScreen({ onBackToLobby }: Props) {
         )}
 
         <button
+          ref={buttonRef}
           onClick={onBackToLobby}
           className="w-full bg-gray-700 hover:bg-gray-600 text-white rounded py-2 font-semibold"
           data-testid="assessment-back"
