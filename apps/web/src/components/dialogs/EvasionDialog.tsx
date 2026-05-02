@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, usePendingStore } from "../../stores";
+import { useDeadlineUrgency } from "../../hooks/useDeadlineUrgency";
 
 interface Props {
   onSubmit: (pendingId: string, diceResult: number) => void;
@@ -27,6 +28,8 @@ export default function EvasionDialog({ onSubmit }: Props) {
     return () => clearInterval(id);
   }, [evasionRequest]);
 
+  const urgency = useDeadlineUrgency(secondsLeft, evasionRequest !== null);
+
   if (!evasionRequest) return null;
 
   const maxDice = myChar?.evasion_dice ?? 0;
@@ -35,12 +38,31 @@ export default function EvasionDialog({ onSubmit }: Props) {
   );
 
   const handleSubmit = () => {
+    if (urgency.isExpired) return;
     onSubmit(evasionRequest.pending_id, usedDice);
   };
 
+  const borderClass = urgency.isExpired
+    ? "border-gray-500 opacity-80"
+    : urgency.isCritical
+      ? "border-red-500 animate-pulse"
+      : urgency.isWarning
+        ? "border-orange-500"
+        : "border-yellow-500";
+  const timerClass = urgency.isExpired
+    ? "text-gray-400"
+    : urgency.isCritical
+      ? "text-red-400 font-bold animate-pulse"
+      : urgency.isWarning
+        ? "text-orange-400 font-semibold"
+        : "text-gray-400";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="bg-gray-900 border border-yellow-500 rounded-lg p-6 w-80 text-white">
+      <div
+        data-testid="evasion-dialog"
+        className={`bg-gray-900 border rounded-lg p-6 w-80 text-white ${borderClass}`}
+      >
         <h2 className="text-lg font-bold text-yellow-400 mb-4">
           {t("room.evasion.title")}
         </h2>
@@ -57,8 +79,14 @@ export default function EvasionDialog({ onSubmit }: Props) {
             <span>{maxDice}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-400">
-              {t("room.evasion.timeLeft", { s: secondsLeft })}
+            <span
+              data-testid="evasion-timer"
+              className={timerClass}
+              aria-live={urgency.isCritical ? "assertive" : "polite"}
+            >
+              {urgency.isExpired
+                ? t("room.evasion.expired")
+                : t("room.evasion.timeLeft", { s: secondsLeft })}
             </span>
           </div>
         </div>
@@ -100,7 +128,8 @@ export default function EvasionDialog({ onSubmit }: Props) {
 
         <button
           onClick={handleSubmit}
-          className="w-full bg-yellow-600 hover:bg-yellow-500 text-white rounded py-2 font-semibold"
+          disabled={urgency.isExpired}
+          className="w-full bg-yellow-600 hover:bg-yellow-500 text-white rounded py-2 font-semibold disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
         >
           {t("room.evasion.submit")}
         </button>

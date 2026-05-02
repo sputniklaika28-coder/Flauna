@@ -39,6 +39,9 @@ import { useChatStore } from "../../src/stores";
 import { I18nextProvider } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 import type { Character, GamePhase, GameState } from "../../src/types";
+import { useDeadlineUrgency } from "../../src/hooks/useDeadlineUrgency";
+import EvasionDialog from "../../src/components/dialogs/EvasionDialog";
+import DeathAvoidanceDialog from "../../src/components/dialogs/DeathAvoidanceDialog";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -102,6 +105,13 @@ describe("Phase 9 web: i18n keys", () => {
       expect(ja).toHaveProperty(k);
       expect(en).toHaveProperty(k);
     }
+  });
+
+  it("ja and en expose the deadline expired keys", () => {
+    expect(ja).toHaveProperty("room.evasion.expired");
+    expect(ja).toHaveProperty("room.deathAvoidance.expired");
+    expect(en).toHaveProperty("room.evasion.expired");
+    expect(en).toHaveProperty("room.deathAvoidance.expired");
   });
 
   it("ja and en still have identical key sets after Phase 9", () => {
@@ -1148,5 +1158,346 @@ describe("Phase 9 web: AiThinkingIndicator (§9-2)", () => {
     expect(screen.getByTestId("ai-thinking-indicator").textContent).toContain(
       "custom_stage",
     );
+  });
+});
+
+describe("Phase 9 web: useDeadlineUrgency hook (§16 alarm timer)", () => {
+  function Harness({
+    secondsLeft,
+    active,
+  }: {
+    secondsLeft: number;
+    active: boolean;
+  }) {
+    const u = useDeadlineUrgency(secondsLeft, active);
+    return React.createElement(
+      "div",
+      { "data-testid": "u" },
+      JSON.stringify(u),
+    );
+  }
+
+  beforeEach(() => {
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+  });
+
+  it("flags warning at <=10s and critical at <=5s", () => {
+    setAudioBackend({ playSe: vi.fn(), playBgm: vi.fn(), stopBgm: vi.fn() });
+    const { rerender } = render(
+      React.createElement(Harness, { secondsLeft: 30, active: true }),
+    );
+    expect(JSON.parse(screen.getByTestId("u").textContent!)).toEqual({
+      isWarning: false,
+      isCritical: false,
+      isExpired: false,
+    });
+    rerender(React.createElement(Harness, { secondsLeft: 10, active: true }));
+    expect(JSON.parse(screen.getByTestId("u").textContent!).isWarning).toBe(true);
+    expect(JSON.parse(screen.getByTestId("u").textContent!).isCritical).toBe(false);
+    rerender(React.createElement(Harness, { secondsLeft: 5, active: true }));
+    expect(JSON.parse(screen.getByTestId("u").textContent!).isCritical).toBe(true);
+    rerender(React.createElement(Harness, { secondsLeft: 0, active: true }));
+    expect(JSON.parse(screen.getByTestId("u").textContent!)).toEqual({
+      isWarning: false,
+      isCritical: false,
+      isExpired: true,
+    });
+  });
+
+  it("plays deadline_tick SE on each decrement inside the critical band", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+    const { rerender } = render(
+      React.createElement(Harness, { secondsLeft: 6, active: true }),
+    );
+    // 6 → 5 (entering critical band)
+    rerender(React.createElement(Harness, { secondsLeft: 5, active: true }));
+    expect(playSeSpy).toHaveBeenCalledWith("deadline_tick", 0.6);
+    // 5 → 4
+    rerender(React.createElement(Harness, { secondsLeft: 4, active: true }));
+    expect(playSeSpy).toHaveBeenCalledTimes(2);
+    // 4 → 3
+    rerender(React.createElement(Harness, { secondsLeft: 3, active: true }));
+    expect(playSeSpy).toHaveBeenCalledTimes(3);
+    // 3 → 0 lands on expiry, no tick on the zero step
+    rerender(React.createElement(Harness, { secondsLeft: 0, active: true }));
+    expect(playSeSpy).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not tick outside the critical band", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+    const { rerender } = render(
+      React.createElement(Harness, { secondsLeft: 30, active: true }),
+    );
+    rerender(React.createElement(Harness, { secondsLeft: 20, active: true }));
+    rerender(React.createElement(Harness, { secondsLeft: 11, active: true }));
+    rerender(React.createElement(Harness, { secondsLeft: 6, active: true }));
+    expect(playSeSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not tick on increments (e.g. dialog reopened with fresh deadline)", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+    const { rerender } = render(
+      React.createElement(Harness, { secondsLeft: 3, active: true }),
+    );
+    rerender(React.createElement(Harness, { secondsLeft: 60, active: true }));
+    expect(playSeSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not tick when the dialog is inactive", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+    const { rerender } = render(
+      React.createElement(Harness, { secondsLeft: 5, active: false }),
+    );
+    rerender(React.createElement(Harness, { secondsLeft: 4, active: false }));
+    expect(playSeSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("Phase 9 web: EvasionDialog deadline urgency", () => {
+  function makeChar(id: string, playerId: string | null): Character {
+    return {
+      id,
+      name: id,
+      player_id: playerId,
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 4,
+      evasion_dice: 3,
+      max_evasion_dice: 3,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    vi.useFakeTimers();
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+    useGameStore.setState({
+      gameState: {
+        characters: [makeChar("me", "p1"), makeChar("foe", null)],
+      },
+      myPlayerId: "p1",
+    } as never);
+    usePendingStore.getState().setEvasionRequest(null);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    usePendingStore.getState().setEvasionRequest(null);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  function renderDialog() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(EvasionDialog, { onSubmit: vi.fn() }),
+      ),
+    );
+  }
+
+  it("shows the expired label and disables submit when time runs out", () => {
+    usePendingStore.getState().setEvasionRequest({
+      pending_id: "pend1",
+      attacker_id: "foe",
+      target_id: "me",
+      deadline_seconds: 2,
+    });
+    renderDialog();
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    const timer = screen.getByTestId("evasion-timer");
+    expect(timer.textContent).toBe(ja["room.evasion.expired"]);
+    const submit = screen
+      .getByTestId("evasion-dialog")
+      .querySelector("button[class*='bg-yellow-600']") as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+  });
+
+  it("does not call onSubmit after the deadline has expired", () => {
+    const onSubmit = vi.fn();
+    usePendingStore.getState().setEvasionRequest({
+      pending_id: "pend1",
+      attacker_id: "foe",
+      target_id: "me",
+      deadline_seconds: 1,
+    });
+    render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(EvasionDialog, { onSubmit }),
+      ),
+    );
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    const submit = screen
+      .getByTestId("evasion-dialog")
+      .querySelector("button[class*='bg-yellow-600']") as HTMLButtonElement;
+    fireEvent.click(submit);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("uses the critical timer styling when ≤5 seconds remain", () => {
+    usePendingStore.getState().setEvasionRequest({
+      pending_id: "pend1",
+      attacker_id: "foe",
+      target_id: "me",
+      deadline_seconds: 4,
+    });
+    renderDialog();
+    const timer = screen.getByTestId("evasion-timer");
+    expect(timer.className).toContain("text-red-400");
+    expect(timer.getAttribute("aria-live")).toBe("assertive");
+  });
+});
+
+describe("Phase 9 web: DeathAvoidanceDialog deadline urgency", () => {
+  function makeChar(): Character {
+    return {
+      id: "me",
+      name: "me",
+      player_id: "p1",
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 1,
+      mp: 10,
+      mobility: 4,
+      evasion_dice: 3,
+      max_evasion_dice: 3,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: { katashiro: 5 },
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    vi.useFakeTimers();
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+    useGameStore.setState({
+      gameState: { characters: [makeChar()] },
+      myPlayerId: "p1",
+    } as never);
+    usePendingStore.getState().setDeathAvoidanceRequest(null);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    usePendingStore.getState().setDeathAvoidanceRequest(null);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  it("shows the expired label and disables submit when time runs out", () => {
+    usePendingStore.getState().setDeathAvoidanceRequest({
+      pending_id: "p",
+      target_character_id: "me",
+      target_player_id: "p1",
+      incoming_damage: 10,
+      damage_type: "physical",
+      katashiro_required: 2,
+      katashiro_remaining: 5,
+      deadline_seconds: 1,
+    });
+    render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(DeathAvoidanceDialog, { onSubmit: vi.fn() }),
+      ),
+    );
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    const timer = screen.getByTestId("death-avoidance-timer");
+    expect(timer.textContent).toBe(ja["room.deathAvoidance.expired"]);
+    const submit = screen
+      .getByTestId("death-avoidance-dialog")
+      .querySelector("button[class*='bg-red-700']") as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+  });
+
+  it("does not call onSubmit after expiry", () => {
+    const onSubmit = vi.fn();
+    usePendingStore.getState().setDeathAvoidanceRequest({
+      pending_id: "p",
+      target_character_id: "me",
+      target_player_id: "p1",
+      incoming_damage: 10,
+      damage_type: "physical",
+      katashiro_required: 2,
+      katashiro_remaining: 5,
+      deadline_seconds: 1,
+    });
+    render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(DeathAvoidanceDialog, { onSubmit }),
+      ),
+    );
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    const submit = screen
+      .getByTestId("death-avoidance-dialog")
+      .querySelector("button[class*='bg-red-700']") as HTMLButtonElement;
+    fireEvent.click(submit);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
