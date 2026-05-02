@@ -220,3 +220,43 @@ describe("TacexWebSocket reconnect", () => {
     tws.close();
   });
 });
+
+// ---------------------------------------------------------------------------
+// reconnectNow
+// ---------------------------------------------------------------------------
+
+describe("TacexWebSocket.reconnectNow", () => {
+  it("cancels pending backoff and reconnects immediately", () => {
+    const { onMessage, onStatus } = makeHandlers();
+    const tws = new TacexWebSocket("ws://localhost/room/r1", onMessage, onStatus);
+    tws.connect();
+    const firstSocket = lastSocket;
+    firstSocket?.simulateClose();
+    // A reconnect is scheduled but not yet fired.
+    expect(lastSocket).toBe(firstSocket);
+    tws.reconnectNow();
+    expect(lastSocket).not.toBe(firstSocket);
+    tws.close();
+  });
+
+  it("is a no-op when the socket is already OPEN", () => {
+    const { onMessage, onStatus } = makeHandlers();
+    const tws = new TacexWebSocket("ws://localhost/room/r1", onMessage, onStatus);
+    tws.connect();
+    lastSocket?.simulateOpen();
+    const sock = lastSocket;
+    tws.reconnectNow();
+    expect(lastSocket).toBe(sock);
+    tws.close();
+  });
+
+  it("does nothing after explicit close", () => {
+    const { onMessage, onStatus } = makeHandlers();
+    const tws = new TacexWebSocket("ws://localhost/room/r1", onMessage, onStatus);
+    tws.connect();
+    tws.close();
+    const sock = lastSocket;
+    tws.reconnectNow();
+    expect(lastSocket).toBe(sock);
+  });
+});

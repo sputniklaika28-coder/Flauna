@@ -19,6 +19,7 @@ import {
 } from "../services/sessionPersistence";
 import { usePhaseBgm } from "../hooks/usePhaseBgm";
 import { useTurnStartSe } from "../hooks/useTurnStartSe";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import {
   useGameStore,
   useChatStore,
@@ -342,6 +343,19 @@ export default function Room() {
 
   usePhaseBgm(gameState?.phase);
   useTurnStartSe(gameState, myPlayerId);
+
+  const online = useOnlineStatus();
+  const prevOnlineRef = useRef<boolean>(online);
+  useEffect(() => {
+    const wasOnline = prevOnlineRef.current;
+    prevOnlineRef.current = online;
+    if (wasOnline && !online) {
+      pushToast({ message: t("room.notice.offline"), severity: "warn" });
+    } else if (!wasOnline && online) {
+      pushToast({ message: t("room.notice.backOnline"), severity: "info" });
+      wsRef.current?.reconnectNow();
+    }
+  }, [online, pushToast, t]);
 
   const sendWs = useCallback((payload: unknown) => {
     wsRef.current?.send(payload);

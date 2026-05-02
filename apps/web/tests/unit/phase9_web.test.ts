@@ -28,6 +28,11 @@ import {
 import AudioSettings from "../../src/components/common/AudioSettings";
 import { usePhaseBgm } from "../../src/hooks/usePhaseBgm";
 import { useTurnStartSe } from "../../src/hooks/useTurnStartSe";
+import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
+import Header from "../../src/components/layout/Header";
+import { useGameStore } from "../../src/stores";
+import { I18nextProvider } from "react-i18next";
+import { MemoryRouter } from "react-router-dom";
 import type { Character, GamePhase, GameState } from "../../src/types";
 
 beforeAll(async () => {
@@ -49,6 +54,15 @@ describe("Phase 9 web: i18n keys", () => {
     expect(en).toHaveProperty("settings.audio.mute");
     expect(en).toHaveProperty("settings.audio.unmute");
     expect(en).toHaveProperty("settings.audio.volume");
+  });
+
+  it("ja and en expose the offline-detection keys", () => {
+    expect(ja).toHaveProperty("room.offline");
+    expect(ja).toHaveProperty("room.notice.offline");
+    expect(ja).toHaveProperty("room.notice.backOnline");
+    expect(en).toHaveProperty("room.offline");
+    expect(en).toHaveProperty("room.notice.offline");
+    expect(en).toHaveProperty("room.notice.backOnline");
   });
 
   it("ja and en still have identical key sets after Phase 9", () => {
@@ -476,5 +490,145 @@ describe("Phase 9 web: useTurnStartSe hook", () => {
       }),
     );
     expect(playSeSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useOnlineStatus hook + Header offline indicator
+// ---------------------------------------------------------------------------
+
+function OnlineProbe(): React.ReactElement {
+  const online = useOnlineStatus();
+  return React.createElement(
+    "div",
+    { "data-testid": "probe" },
+    online ? "online" : "offline",
+  );
+}
+
+describe("Phase 9 web: useOnlineStatus hook", () => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    window.navigator,
+    "onLine",
+  );
+
+  function setNavigatorOnLine(value: boolean) {
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      get: () => value,
+    });
+  }
+
+  afterEach(() => {
+    if (originalDescriptor) {
+      Object.defineProperty(window.navigator, "onLine", originalDescriptor);
+    } else {
+      setNavigatorOnLine(true);
+    }
+  });
+
+  it("returns the initial navigator.onLine value", () => {
+    setNavigatorOnLine(false);
+    render(React.createElement(OnlineProbe));
+    expect(screen.getByTestId("probe").textContent).toBe("offline");
+  });
+
+  it("updates when window emits online / offline events", () => {
+    setNavigatorOnLine(true);
+    render(React.createElement(OnlineProbe));
+    expect(screen.getByTestId("probe").textContent).toBe("online");
+    act(() => {
+      setNavigatorOnLine(false);
+      window.dispatchEvent(new Event("offline"));
+    });
+    expect(screen.getByTestId("probe").textContent).toBe("offline");
+    act(() => {
+      setNavigatorOnLine(true);
+      window.dispatchEvent(new Event("online"));
+    });
+    expect(screen.getByTestId("probe").textContent).toBe("online");
+  });
+});
+
+describe("Phase 9 web: Header offline indicator", () => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    window.navigator,
+    "onLine",
+  );
+
+  function setNavigatorOnLine(value: boolean) {
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      get: () => value,
+    });
+  }
+
+  afterEach(() => {
+    if (originalDescriptor) {
+      Object.defineProperty(window.navigator, "onLine", originalDescriptor);
+    } else {
+      setNavigatorOnLine(true);
+    }
+    useGameStore.setState({
+      gameState: null,
+      connectionStatus: "CONNECTING",
+      myPlayerId: null,
+      authToken: null,
+      lastSeenEventId: 0,
+    } as Partial<ReturnType<typeof useGameStore.getState>> as never);
+  });
+
+  function renderHeader() {
+    return render(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(Header),
+        ),
+      ),
+    );
+  }
+
+  it("shows the offline label and red dot when navigator.onLine is false", async () => {
+    await i18n.changeLanguage("ja");
+    setNavigatorOnLine(false);
+    useGameStore.setState({ connectionStatus: "ACTIVE" });
+    renderHeader();
+    expect(screen.getByTestId("connection-label").textContent).toBe(
+      ja["room.offline"],
+    );
+    expect(screen.getByTestId("connection-dot").className).toContain(
+      "bg-red-500",
+    );
+  });
+
+  it("shows the connected label when online and ACTIVE", async () => {
+    await i18n.changeLanguage("ja");
+    setNavigatorOnLine(true);
+    useGameStore.setState({ connectionStatus: "ACTIVE" });
+    renderHeader();
+    expect(screen.getByTestId("connection-label").textContent).toBe(
+      ja["room.connected"],
+    );
+  });
+
+  it("re-renders when the window switches between online and offline", async () => {
+    await i18n.changeLanguage("ja");
+    setNavigatorOnLine(true);
+    useGameStore.setState({ connectionStatus: "ACTIVE" });
+    renderHeader();
+    expect(screen.getByTestId("connection-label").textContent).toBe(
+      ja["room.connected"],
+    );
+    act(() => {
+      setNavigatorOnLine(false);
+      window.dispatchEvent(new Event("offline"));
+    });
+    expect(screen.getByTestId("connection-label").textContent).toBe(
+      ja["room.offline"],
+    );
   });
 });

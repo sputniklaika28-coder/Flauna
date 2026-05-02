@@ -61,6 +61,22 @@ export class TacexWebSocket {
     this.ws?.close(1000);
   }
 
+  /**
+   * Cancel any pending backoff and reconnect immediately. Used when the
+   * browser reports that the network has come back online so the user does
+   * not have to wait through the exponential delay.
+   */
+  reconnectNow(): void {
+    if (this.stopped) return;
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectDelay = INITIAL_DELAY_MS;
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
+    this.connect();
+  }
+
   private scheduleReconnect(): void {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectDelay = Math.min(this.reconnectDelay * BACKOFF_MULTIPLIER, MAX_DELAY_MS);
