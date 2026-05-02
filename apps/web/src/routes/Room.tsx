@@ -30,7 +30,7 @@ import {
 } from "../stores";
 import { actionForError, messageForError } from "../utils";
 import { Header, SideMenu } from "../components/layout";
-import { ToastContainer } from "../components/common";
+import { ToastContainer, AiThinkingIndicator } from "../components/common";
 import { ChatPanel } from "../components/chat";
 import { GameMap, ContextMenu } from "../components/map";
 import { QuickActionBar, ActionDetailModal } from "../components/action";
@@ -74,6 +74,8 @@ export default function Room() {
     triggerCastArtCutscene,
     addDamageEvent,
     setCombatResult,
+    setAiThinking,
+    clearAiThinking,
   } = useUIStore();
   const {
     setEvasionRequest,
@@ -94,6 +96,13 @@ export default function Room() {
 
       if ("event_id" in msg && typeof msg.event_id === "number") {
         setLastSeenEventId(msg.event_id);
+      }
+
+      // §9-2: any progress event from the server means the AI wait is over,
+      // so drop the "GM考え中" banner unless this very message is another
+      // ai_thinking stage (e.g. deciding_action → narrating).
+      if (msg.type !== "ai_thinking") {
+        clearAiThinking();
       }
 
       switch (msg.type) {
@@ -188,7 +197,13 @@ export default function Room() {
           break;
         }
         case "ai_thinking": {
-          addEntry("system", `GM: ${msg.stage}…`);
+          // Spec §9-2: surface "GM考え中" as a banner, not a chat line, so the
+          // indicator can stand out and self-clear on the next progress event.
+          const actorId =
+            "actor_id" in msg && typeof msg.actor_id === "string"
+              ? msg.actor_id
+              : null;
+          setAiThinking(msg.stage, actorId);
           break;
         }
         case "evade_required": {
@@ -287,6 +302,8 @@ export default function Room() {
       addDamageEvent,
       setCombatResult,
       triggerCastArtCutscene,
+      setAiThinking,
+      clearAiThinking,
       pushToast,
       navigate,
       roomId,
@@ -571,7 +588,8 @@ export default function Room() {
       <div className="flex flex-1 overflow-hidden">
         <SideMenu />
 
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="relative flex flex-col flex-1 overflow-hidden">
+          <AiThinkingIndicator />
           <GameMap onCharRightClick={handleCharRightClick} />
           <QuickActionBar onEndTurn={handleEndTurn} />
         </div>

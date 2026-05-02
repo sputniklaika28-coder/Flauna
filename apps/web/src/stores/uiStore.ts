@@ -23,6 +23,16 @@ export interface CastArtCutscene {
   casterName: string;
 }
 
+/**
+ * Spec §9-2: while the server emits `ai_thinking`, show a "GM考え中" banner
+ * (max 10s). `actorId` is optional — only present for `deciding_action` stage.
+ */
+export interface AiThinkingIndicatorState {
+  stage: string;
+  actorId: string | null;
+  receivedAt: number;
+}
+
 interface UIStore {
   mapZoom: number;
   selectedCharId: string | null;
@@ -40,6 +50,8 @@ interface UIStore {
   /** Phase 8: side panel visibility on narrow screens (md and below). */
   sideMenuOpen: boolean;
   chatPanelOpen: boolean;
+  /** Phase 9 UX (§9-2): "GM考え中" banner state, null when idle. */
+  aiThinking: AiThinkingIndicatorState | null;
 
   setMapZoom: (zoom: number) => void;
   setSelectedChar: (id: string | null) => void;
@@ -57,6 +69,8 @@ interface UIStore {
   toggleSideMenu: () => void;
   toggleChatPanel: () => void;
   closeMobilePanels: () => void;
+  setAiThinking: (stage: string, actorId: string | null) => void;
+  clearAiThinking: () => void;
 }
 
 export const useUIStore = create<UIStore>()((set) => ({
@@ -72,6 +86,7 @@ export const useUIStore = create<UIStore>()((set) => ({
   castArtCutscene: null,
   sideMenuOpen: false,
   chatPanelOpen: false,
+  aiThinking: null,
 
   setMapZoom: (zoom) => set({ mapZoom: Math.min(64, Math.max(30, zoom)) }),
   setSelectedChar: (id) => set({ selectedCharId: id }),
@@ -97,4 +112,7 @@ export const useUIStore = create<UIStore>()((set) => ({
   toggleChatPanel: () =>
     set((s) => ({ chatPanelOpen: !s.chatPanelOpen, sideMenuOpen: false })),
   closeMobilePanels: () => set({ sideMenuOpen: false, chatPanelOpen: false }),
+  setAiThinking: (stage, actorId) =>
+    set({ aiThinking: { stage, actorId, receivedAt: Date.now() } }),
+  clearAiThinking: () => set({ aiThinking: null }),
 }));
