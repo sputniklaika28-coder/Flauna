@@ -124,6 +124,10 @@ const ja = {
   "settings.audio.mute": "音をミュート",
   "settings.audio.unmute": "ミュートを解除",
   "settings.audio.volume": "音量",
+  "room.mobile.toggleSideMenu": "メニューを開閉",
+  "room.mobile.toggleChatPanel": "チャットを開閉",
+  "room.mobile.closeSideMenu": "メニューを閉じる",
+  "room.mobile.closeChatPanel": "チャットを閉じる",
 } as const;
 
 export default ja;

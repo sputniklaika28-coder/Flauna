@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useChatStore, useGameStore } from "../../stores";
+import { useChatStore, useGameStore, useUIStore } from "../../stores";
 import type { ChatEntry } from "../../types";
 
 function EntryRow({ entry }: { entry: ChatEntry }) {
@@ -36,6 +36,8 @@ export default function ChatPanel({ onSendStatement }: Props) {
   const { t } = useTranslation();
   const entries = useChatStore((s) => s.entries);
   const { gameState } = useGameStore();
+  const chatPanelOpen = useUIStore((s) => s.chatPanelOpen);
+  const closeMobilePanels = useUIStore((s) => s.closeMobilePanels);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
 
@@ -51,7 +53,24 @@ export default function ChatPanel({ onSendStatement }: Props) {
   };
 
   return (
-    <div className="w-64 bg-gray-900 text-white flex flex-col flex-shrink-0">
+    <>
+      {chatPanelOpen && (
+        <button
+          type="button"
+          aria-label={t("room.mobile.closeChatPanel")}
+          onClick={closeMobilePanels}
+          className="lg:hidden fixed inset-0 z-30 bg-black/50"
+          data-testid="chatpanel-backdrop"
+        />
+      )}
+      <div
+        data-testid="chatpanel"
+        className={`w-64 bg-gray-900 text-white flex flex-col flex-shrink-0
+          lg:relative lg:translate-x-0 lg:flex
+          fixed inset-y-0 right-0 z-40 transition-transform
+          ${chatPanelOpen ? "translate-x-0" : "translate-x-full"}
+          lg:transform-none`}
+      >
       <div className="flex-1 overflow-y-auto p-3 space-y-1">
         {entries.map((e) => (
           <EntryRow key={e.id} entry={e} />
@@ -74,6 +93,7 @@ export default function ChatPanel({ onSendStatement }: Props) {
           {t("room.send")}
         </button>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

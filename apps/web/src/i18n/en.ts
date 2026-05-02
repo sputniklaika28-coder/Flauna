@@ -124,6 +124,10 @@ const en = {
   "settings.audio.mute": "Mute audio",
   "settings.audio.unmute": "Unmute audio",
   "settings.audio.volume": "Volume",
+  "room.mobile.toggleSideMenu": "Toggle side menu",
+  "room.mobile.toggleChatPanel": "Toggle chat panel",
+  "room.mobile.closeSideMenu": "Close side menu",
+  "room.mobile.closeChatPanel": "Close chat panel",
 } as const;
 
 export default en;
