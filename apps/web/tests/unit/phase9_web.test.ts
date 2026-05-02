@@ -43,6 +43,9 @@ import type { Character, GamePhase, GameState } from "../../src/types";
 import { useDeadlineUrgency } from "../../src/hooks/useDeadlineUrgency";
 import EvasionDialog from "../../src/components/dialogs/EvasionDialog";
 import DeathAvoidanceDialog from "../../src/components/dialogs/DeathAvoidanceDialog";
+import SessionLostScreen from "../../src/components/dialogs/SessionLostScreen";
+import CombatResultModal from "../../src/components/dialogs/CombatResultModal";
+import AssessmentScreen from "../../src/components/dialogs/AssessmentScreen";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -2040,5 +2043,248 @@ describe("Phase 9 web: DeathAvoidanceDialog focus trap", () => {
     ) as HTMLElement;
     fireEvent.keyDown(overlay, { key: "Tab", shiftKey: true });
     expect(document.activeElement).toBe(last);
+  });
+});
+
+// §17 a11y for the terminal screens (CombatResultModal, SessionLostScreen,
+// AssessmentScreen). These full-screen modals all have a single
+// "back-to-lobby" affordance, so the keyboard story is: alertdialog role,
+// autofocus the dismiss button, and Enter confirms.
+
+describe("Phase 9 web: SessionLostScreen keyboard + a11y", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useGameStore.setState({ connectionStatus: "SESSION_LOST" } as never);
+  });
+
+  afterEach(() => {
+    useGameStore.setState({ connectionStatus: "DISCONNECTED" } as never);
+  });
+
+  function renderScreen(onBack = vi.fn()) {
+    const utils = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(SessionLostScreen, { onBackToLobby: onBack }),
+      ),
+    );
+    return { ...utils, onBack };
+  }
+
+  it("declares alertdialog role with aria-modal and aria-labelledby", () => {
+    renderScreen();
+    const overlay = screen.getByTestId("session-lost-screen");
+    expect(overlay.getAttribute("role")).toBe("alertdialog");
+    expect(overlay.getAttribute("aria-modal")).toBe("true");
+    const labelId = overlay.getAttribute("aria-labelledby");
+    expect(labelId).toBe("session-lost-title");
+    expect(document.getElementById(labelId!)).not.toBeNull();
+  });
+
+  it("autofocuses the back-to-lobby button on open", async () => {
+    renderScreen();
+    const button = screen.getByTestId("session-lost-back");
+    await waitFor(() => expect(document.activeElement).toBe(button));
+  });
+
+  it("invokes onBackToLobby when Enter is pressed", () => {
+    const { onBack } = renderScreen();
+    const overlay = screen.getByTestId("session-lost-screen");
+    fireEvent.keyDown(overlay, { key: "Enter" });
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores Enter when modifier keys are held", () => {
+    const { onBack } = renderScreen();
+    const overlay = screen.getByTestId("session-lost-screen");
+    fireEvent.keyDown(overlay, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(overlay, { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(overlay, { key: "Enter", metaKey: true });
+    fireEvent.keyDown(overlay, { key: "Enter", altKey: true });
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("traps Tab inside the dialog", () => {
+    renderScreen();
+    const overlay = screen.getByTestId("session-lost-screen");
+    const button = screen.getByTestId("session-lost-back");
+    button.focus();
+    fireEvent.keyDown(overlay, { key: "Tab" });
+    expect(document.activeElement).toBe(button);
+    fireEvent.keyDown(overlay, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(button);
+  });
+});
+
+describe("Phase 9 web: CombatResultModal keyboard + a11y", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useUIStore.setState({ combatResult: "victory" } as never);
+  });
+
+  afterEach(() => {
+    useUIStore.setState({ combatResult: null } as never);
+  });
+
+  function renderModal(onBack = vi.fn()) {
+    const utils = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(CombatResultModal, { onBackToLobby: onBack }),
+      ),
+    );
+    return { ...utils, onBack };
+  }
+
+  it("declares alertdialog role with aria-modal and aria-labelledby", () => {
+    renderModal();
+    const overlay = screen.getByTestId("combat-result-modal");
+    expect(overlay.getAttribute("role")).toBe("alertdialog");
+    expect(overlay.getAttribute("aria-modal")).toBe("true");
+    const labelId = overlay.getAttribute("aria-labelledby");
+    expect(labelId).toBe("combat-result-title");
+    expect(document.getElementById(labelId!)).not.toBeNull();
+  });
+
+  it("autofocuses the back-to-lobby button on open", async () => {
+    renderModal();
+    const button = screen.getByTestId("combat-result-back");
+    await waitFor(() => expect(document.activeElement).toBe(button));
+  });
+
+  it("dismisses on Enter and clears combatResult", () => {
+    const { onBack } = renderModal();
+    const overlay = screen.getByTestId("combat-result-modal");
+    fireEvent.keyDown(overlay, { key: "Enter" });
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(useUIStore.getState().combatResult).toBeNull();
+  });
+
+  it("traps Tab inside the modal", () => {
+    renderModal();
+    const overlay = screen.getByTestId("combat-result-modal");
+    const button = screen.getByTestId("combat-result-back");
+    button.focus();
+    fireEvent.keyDown(overlay, { key: "Tab" });
+    expect(document.activeElement).toBe(button);
+    fireEvent.keyDown(overlay, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(button);
+  });
+
+  it("renders nothing when combatResult is null", () => {
+    useUIStore.setState({ combatResult: null } as never);
+    const { container } = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(CombatResultModal, { onBackToLobby: vi.fn() }),
+      ),
+    );
+    expect(container.firstChild).toBeNull();
+  });
+});
+
+describe("Phase 9 web: AssessmentScreen keyboard + a11y", () => {
+  function makeChar(id: string, playerId: string | null): Character {
+    return {
+      id,
+      name: id,
+      player_id: playerId,
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 4,
+      evasion_dice: 3,
+      max_evasion_dice: 3,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  function makeAssessmentState(): GameState {
+    return {
+      session_id: "s1",
+      version: 1,
+      phase: "assessment" as GamePhase,
+      machine_state: "IDLE",
+      turn_owner: null,
+      round: 1,
+      characters: [makeChar("me", "p1")],
+      map: { width: 10, height: 10, tiles: [] },
+      assessment_result: {
+        outcome: "victory",
+        grade: "A",
+        rounds_taken: 5,
+        pcs_alive: 1,
+        pcs_total: 1,
+        enemies_defeated: 1,
+        enemies_total: 1,
+      },
+      growth_proposals: [],
+    } as unknown as GameState;
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useGameStore.setState({
+      gameState: makeAssessmentState(),
+      myPlayerId: "p1",
+    } as never);
+  });
+
+  afterEach(() => {
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  function renderScreen(onBack = vi.fn()) {
+    const utils = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(AssessmentScreen, { onBackToLobby: onBack }),
+      ),
+    );
+    return { ...utils, onBack };
+  }
+
+  it("declares alertdialog role with aria-modal and aria-labelledby", () => {
+    renderScreen();
+    const overlay = screen.getByTestId("assessment-screen");
+    expect(overlay.getAttribute("role")).toBe("alertdialog");
+    expect(overlay.getAttribute("aria-modal")).toBe("true");
+    const labelId = overlay.getAttribute("aria-labelledby");
+    expect(labelId).toBe("assessment-screen-title");
+    expect(document.getElementById(labelId!)).not.toBeNull();
+  });
+
+  it("autofocuses the back-to-lobby button on open", async () => {
+    renderScreen();
+    const button = screen.getByTestId("assessment-back");
+    await waitFor(() => expect(document.activeElement).toBe(button));
+  });
+
+  it("invokes onBackToLobby when Enter is pressed", () => {
+    const { onBack } = renderScreen();
+    const overlay = screen.getByTestId("assessment-screen");
+    fireEvent.keyDown(overlay, { key: "Enter" });
+    expect(onBack).toHaveBeenCalledTimes(1);
   });
 });
