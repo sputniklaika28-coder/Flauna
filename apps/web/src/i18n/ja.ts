@@ -154,6 +154,7 @@ const ja = {
   "room.notice.offline": "ネットワーク接続が切れました。復旧次第、自動的に再接続します",
   "room.notice.backOnline": "ネットワークが復旧しました。再接続します",
   "room.submitting": "送信中…",
+  "room.chat.jumpToLatest": "新着 {{n}} 件 ↓",
 } as const;
 
 export default ja;

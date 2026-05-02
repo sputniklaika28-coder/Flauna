@@ -32,6 +32,8 @@ import { useOnlineStatus } from "../../src/hooks/useOnlineStatus";
 import Header from "../../src/components/layout/Header";
 import { useGameStore, usePendingStore } from "../../src/stores";
 import QuickActionBar from "../../src/components/action/QuickActionBar";
+import ChatPanel from "../../src/components/chat/ChatPanel";
+import { useChatStore } from "../../src/stores";
 import { I18nextProvider } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 import type { Character, GamePhase, GameState } from "../../src/types";
@@ -750,5 +752,181 @@ describe("Phase 9 web: QuickActionBar submitting indicator", () => {
     renderBar(handler);
     fireEvent.click(screen.getByTestId("quickbar-end-turn"));
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ChatPanel — sticky auto-scroll + jump-to-latest button
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: ChatPanel sticky scroll", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useChatStore.setState({ entries: [] });
+    useGameStore.setState({
+      gameState: {
+        room_id: "r",
+        version: 1,
+        seed: 1,
+        phase: "combat",
+        machine_state: "IDLE",
+        turn_order: [],
+        current_turn_index: 0,
+        round_number: 1,
+        characters: [],
+        map_size: [10, 10],
+        obstacles: [],
+        current_turn_summary: null,
+        pending_actions: [],
+      },
+    } as never);
+  });
+
+  afterEach(() => {
+    useChatStore.setState({ entries: [] });
+    useGameStore.setState({ gameState: null } as never);
+  });
+
+  function renderPanel() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ChatPanel, { onSendStatement: () => {} }),
+      ),
+    );
+  }
+
+  function setScrollGeometry(
+    el: HTMLElement,
+    { scrollTop, scrollHeight, clientHeight }: {
+      scrollTop: number;
+      scrollHeight: number;
+      clientHeight: number;
+    },
+  ) {
+    Object.defineProperty(el, "scrollTop", {
+      configurable: true,
+      get: () => scrollTop,
+      set: () => {},
+    });
+    Object.defineProperty(el, "scrollHeight", {
+      configurable: true,
+      get: () => scrollHeight,
+    });
+    Object.defineProperty(el, "clientHeight", {
+      configurable: true,
+      get: () => clientHeight,
+    });
+  }
+
+  it("does not show the jump-to-latest button when stuck at the bottom", () => {
+    renderPanel();
+    act(() => {
+      useChatStore.getState().addEntry("system", "first");
+      useChatStore.getState().addEntry("system", "second");
+    });
+    expect(screen.queryByTestId("chatpanel-jump-to-latest")).toBeNull();
+  });
+
+  it("shows the jump-to-latest button after the user scrolls up and a new entry arrives", () => {
+    renderPanel();
+    act(() => {
+      useChatStore.getState().addEntry("system", "old");
+    });
+    const scrollEl = screen.getByTestId("chatpanel-scroll");
+    // Simulate the user scrolling away from the bottom.
+    act(() => {
+      setScrollGeometry(scrollEl, {
+        scrollTop: 0,
+        scrollHeight: 1000,
+        clientHeight: 200,
+      });
+      fireEvent.scroll(scrollEl);
+    });
+    // A new entry arrives while scrolled up.
+    act(() => {
+      useChatStore.getState().addEntry("gm_narrative", "new!");
+    });
+    const btn = screen.getByTestId("chatpanel-jump-to-latest");
+    expect(btn).toBeTruthy();
+    expect(btn.textContent).toContain("1");
+  });
+
+  it("counts multiple unread entries while the user is scrolled away", () => {
+    renderPanel();
+    act(() => {
+      useChatStore.getState().addEntry("system", "seed");
+    });
+    const scrollEl = screen.getByTestId("chatpanel-scroll");
+    act(() => {
+      setScrollGeometry(scrollEl, {
+        scrollTop: 0,
+        scrollHeight: 1000,
+        clientHeight: 200,
+      });
+      fireEvent.scroll(scrollEl);
+    });
+    act(() => {
+      useChatStore.getState().addEntry("gm_narrative", "n1");
+      useChatStore.getState().addEntry("gm_narrative", "n2");
+      useChatStore.getState().addEntry("gm_narrative", "n3");
+    });
+    expect(
+      screen.getByTestId("chatpanel-jump-to-latest").textContent,
+    ).toContain("3");
+  });
+
+  it("dismisses the jump-to-latest button once the user scrolls back to the bottom", () => {
+    renderPanel();
+    act(() => {
+      useChatStore.getState().addEntry("system", "seed");
+    });
+    const scrollEl = screen.getByTestId("chatpanel-scroll");
+    act(() => {
+      setScrollGeometry(scrollEl, {
+        scrollTop: 0,
+        scrollHeight: 1000,
+        clientHeight: 200,
+      });
+      fireEvent.scroll(scrollEl);
+    });
+    act(() => {
+      useChatStore.getState().addEntry("gm_narrative", "new");
+    });
+    expect(screen.getByTestId("chatpanel-jump-to-latest")).toBeTruthy();
+    act(() => {
+      setScrollGeometry(scrollEl, {
+        scrollTop: 800,
+        scrollHeight: 1000,
+        clientHeight: 200,
+      });
+      fireEvent.scroll(scrollEl);
+    });
+    expect(screen.queryByTestId("chatpanel-jump-to-latest")).toBeNull();
+  });
+
+  it("clicking the jump-to-latest button hides it", () => {
+    renderPanel();
+    act(() => {
+      useChatStore.getState().addEntry("system", "seed");
+    });
+    const scrollEl = screen.getByTestId("chatpanel-scroll");
+    act(() => {
+      setScrollGeometry(scrollEl, {
+        scrollTop: 0,
+        scrollHeight: 1000,
+        clientHeight: 200,
+      });
+      fireEvent.scroll(scrollEl);
+    });
+    act(() => {
+      useChatStore.getState().addEntry("gm_narrative", "new");
+    });
+    const btn = screen.getByTestId("chatpanel-jump-to-latest");
+    act(() => {
+      fireEvent.click(btn);
+    });
+    expect(screen.queryByTestId("chatpanel-jump-to-latest")).toBeNull();
   });
 });
