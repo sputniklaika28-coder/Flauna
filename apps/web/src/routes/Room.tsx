@@ -6,6 +6,12 @@ import { TacexWebSocket } from "../services/websocket";
 import { joinRoom } from "../services/api";
 import { playSe } from "../services/audio";
 import {
+  rememberSubmit,
+  resubmitWithCurrentVersion,
+  clearLastSubmit,
+  type TurnActionPayload,
+} from "../services/turnActionResender";
+import {
   clearSession,
   loadPlayerName,
   loadSession,
@@ -226,6 +232,23 @@ export default function Room() {
         case "error": {
           const action = actionForError(msg.code);
           addEntry("system", `エラー: ${msg.code} — ${msg.message}`);
+          if (msg.code === "VERSION_MISMATCH") {
+            const ok = resubmitWithCurrentVersion({
+              send: (p) => wsRef.current?.send(p),
+              getCurrentVersion: () =>
+                useGameStore.getState().gameState?.version,
+              newRequestId: () => nanoid(),
+            });
+            pushToast({
+              message: t(
+                ok
+                  ? "room.notice.versionMismatchRetry"
+                  : "room.notice.versionMismatchGiveUp",
+              ),
+              severity: ok ? "info" : "warn",
+            });
+            break;
+          }
           if (action.kind === "silent") break;
           const localized = messageForError(t, msg.code);
           pushToast({ message: localized, severity: action.severity });
@@ -312,6 +335,7 @@ export default function Room() {
 
     return () => {
       wsRef.current?.close();
+      clearLastSubmit();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
@@ -323,9 +347,17 @@ export default function Room() {
     wsRef.current?.send(payload);
   }, []);
 
+  const sendTurnAction = useCallback(
+    (payload: TurnActionPayload) => {
+      rememberSubmit(payload);
+      sendWs(payload);
+    },
+    [sendWs],
+  );
+
   const handleEndTurn = useCallback(() => {
     if (!gameState || !myPlayerId) return;
-    sendWs({
+    sendTurnAction({
       action: "submit_turn_action",
       player_id: myPlayerId,
       room_id: gameState.room_id,
@@ -333,7 +365,7 @@ export default function Room() {
       expected_version: gameState.version,
       turn_action: { end_turn: true },
     });
-  }, [gameState, myPlayerId, sendWs]);
+  }, [gameState, myPlayerId, sendTurnAction]);
 
   const handleSendStatement = useCallback(
     (text: string) => {
@@ -390,7 +422,7 @@ export default function Room() {
       );
       if (!myChar) return;
       const weaponId = myChar.equipped_weapons[0] ?? "default";
-      sendWs({
+      sendTurnAction({
         action: "submit_turn_action",
         player_id: myPlayerId,
         room_id: gameState.room_id,
@@ -407,7 +439,7 @@ export default function Room() {
         },
       });
     },
-    [gameState, myPlayerId, sendWs],
+    [gameState, myPlayerId, sendTurnAction],
   );
 
   const handleDetailAttack = useCallback(
@@ -430,7 +462,7 @@ export default function Room() {
         payload.moveMode !== "normal"
           ? { path: [], mode: payload.moveMode }
           : undefined;
-      sendWs({
+      sendTurnAction({
         action: "submit_turn_action",
         player_id: myPlayerId,
         room_id: gameState.room_id,
@@ -449,7 +481,7 @@ export default function Room() {
         },
       });
     },
-    [gameState, myPlayerId, sendWs],
+    [gameState, myPlayerId, sendTurnAction],
   );
 
   const handleOpenCastArt = useCallback(
@@ -466,7 +498,7 @@ export default function Room() {
         (c) => c.player_id === myPlayerId,
       );
       if (!myChar) return;
-      sendWs({
+      sendTurnAction({
         action: "submit_turn_action",
         player_id: myPlayerId,
         room_id: gameState.room_id,
@@ -491,7 +523,7 @@ export default function Room() {
       });
       addEntry("system", `『${payload.art_name}』を発動！`);
     },
-    [gameState, myPlayerId, sendWs, triggerCastArtCutscene, addEntry],
+    [gameState, myPlayerId, sendTurnAction, triggerCastArtCutscene, addEntry],
   );
 
   const handleCharRightClick = useCallback(
