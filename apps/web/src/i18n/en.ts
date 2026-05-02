@@ -174,6 +174,10 @@ const en = {
   "room.system.pendingExpiredDeathAvoidance": "Death avoidance auto-resolved during disconnection ({{reason}})",
   "room.system.pendingRestoredEvasion": "Restoring the evasion prompt",
   "room.system.pendingRestoredDeathAvoidance": "Restoring the death-avoidance prompt",
+  "room.sideMenu.status": "Status",
+  "room.sideMenu.statusNone": "None",
+  "room.sideMenu.statusDuration": "{{name}} ({{n}} turns left)",
+  "room.sideMenu.katashiroCount": "{{n}}",
 } as const;
 
 export default en;

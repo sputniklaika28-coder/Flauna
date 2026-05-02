@@ -14,6 +14,8 @@ const PRESSURE_TEXT: Record<PressureLevel, string> = {
   ultra_hard: "text-red-300",
 };
 
+const EVASION_DOT_LIMIT = 10;
+
 function ResourceBar({
   current,
   max,
@@ -34,10 +36,36 @@ function ResourceBar({
   );
 }
 
-function CharCard({ char, isCurrent }: { char: Character; isCurrent: boolean }) {
+function EvasionDots({ current, max }: { current: number; max: number }) {
+  if (max <= 0 || max > EVASION_DOT_LIMIT) return null;
+  const filled = Math.max(0, Math.min(current, max));
+  return (
+    <span
+      data-testid="evasion-dots"
+      aria-hidden="true"
+      className="text-[10px] tracking-tight text-gray-300"
+    >
+      {"●".repeat(filled)}
+      <span className="text-gray-600">{"○".repeat(max - filled)}</span>
+    </span>
+  );
+}
+
+function CharCard({
+  char,
+  isCurrent,
+  showPrivate,
+}: {
+  char: Character;
+  isCurrent: boolean;
+  showPrivate: boolean;
+}) {
   const { t } = useTranslation();
+  const katashiro = char.inventory?.["katashiro"];
+  const statusEffects = char.status_effects ?? [];
   return (
     <div
+      data-testid={`sidemenu-char-${char.id}`}
       className={`p-2 rounded mb-2 text-sm ${
         isCurrent
           ? "border border-yellow-400 bg-gray-750"
@@ -65,11 +93,64 @@ function CharCard({ char, isCurrent }: { char: Character; isCurrent: boolean }) 
           </span>
         </div>
         <ResourceBar current={char.mp} max={char.max_mp} color="bg-blue-500" />
-        <div className="flex justify-between text-xs text-gray-400">
+        <div className="flex items-center justify-between gap-2 text-xs text-gray-400">
           <span>{t("room.evasion")}</span>
-          <span>
-            {char.evasion_dice}/{char.max_evasion_dice}
+          <span className="flex items-center gap-1">
+            <EvasionDots
+              current={char.evasion_dice}
+              max={char.max_evasion_dice}
+            />
+            <span data-testid={`sidemenu-evasion-${char.id}`}>
+              {char.evasion_dice}/{char.max_evasion_dice}
+            </span>
           </span>
+        </div>
+        {showPrivate && typeof katashiro === "number" && (
+          <div
+            className="flex justify-between text-xs text-gray-400"
+            data-testid={`sidemenu-katashiro-${char.id}`}
+          >
+            <span>{t("room.hud.katashiro")}</span>
+            <span>{t("room.sideMenu.katashiroCount", { n: katashiro })}</span>
+          </div>
+        )}
+        <div className="flex items-start justify-between gap-2 text-xs text-gray-400">
+          <span className="shrink-0">{t("room.sideMenu.status")}</span>
+          {statusEffects.length === 0 ? (
+            <span
+              data-testid={`sidemenu-status-${char.id}`}
+              className="text-gray-500"
+            >
+              {t("room.sideMenu.statusNone")}
+            </span>
+          ) : (
+            <span
+              data-testid={`sidemenu-status-${char.id}`}
+              className="flex flex-wrap justify-end gap-1"
+            >
+              {statusEffects.map((effect, idx) => (
+                <span
+                  key={`${effect.name}-${idx}`}
+                  className="px-1.5 py-0.5 rounded bg-purple-900/50 border border-purple-700 text-purple-200"
+                  title={
+                    effect.duration > 0
+                      ? t("room.sideMenu.statusDuration", {
+                          name: effect.name,
+                          n: effect.duration,
+                        })
+                      : effect.name
+                  }
+                >
+                  {effect.name}
+                  {effect.duration > 0 && (
+                    <span className="ml-0.5 text-purple-400">
+                      ×{effect.duration}
+                    </span>
+                  )}
+                </span>
+              ))}
+            </span>
+          )}
         </div>
       </div>
     </div>
@@ -113,7 +194,12 @@ export default function SideMenu() {
           lg:transform-none`}
       >
       {myChars.map((c) => (
-        <CharCard key={c.id} char={c} isCurrent={c.id === currentActorId} />
+        <CharCard
+          key={c.id}
+          char={c}
+          isCurrent={c.id === currentActorId}
+          showPrivate={true}
+        />
       ))}
 
       {others.length > 0 && (
@@ -126,6 +212,7 @@ export default function SideMenu() {
               key={c.id}
               char={c}
               isCurrent={c.id === currentActorId}
+              showPrivate={false}
             />
           ))}
         </>
