@@ -12,6 +12,7 @@ import {
   saveSession,
 } from "../services/sessionPersistence";
 import { usePhaseBgm } from "../hooks/usePhaseBgm";
+import { useTurnStartSe } from "../hooks/useTurnStartSe";
 import {
   useGameStore,
   useChatStore,
@@ -285,6 +286,7 @@ export default function Room() {
   }, [roomId]);
 
   usePhaseBgm(gameState?.phase);
+  useTurnStartSe(gameState, myPlayerId);
 
   const sendWs = useCallback((payload: unknown) => {
     wsRef.current?.send(payload);

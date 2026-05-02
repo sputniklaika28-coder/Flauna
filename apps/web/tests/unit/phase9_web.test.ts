@@ -27,7 +27,8 @@ import {
 } from "../../src/services/audio";
 import AudioSettings from "../../src/components/common/AudioSettings";
 import { usePhaseBgm } from "../../src/hooks/usePhaseBgm";
-import type { GamePhase } from "../../src/types";
+import { useTurnStartSe } from "../../src/hooks/useTurnStartSe";
+import type { Character, GamePhase, GameState } from "../../src/types";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -252,5 +253,215 @@ describe("Phase 9 web: usePhaseBgm hook", () => {
     render(React.createElement(PhaseHarness, { phase: undefined }));
     expect(playBgmSpy).not.toHaveBeenCalled();
     expect(stopBgmSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("Phase 9 web: useTurnStartSe hook", () => {
+  function makeChar(over: Partial<Character> & Pick<Character, "id">): Character {
+    return {
+      id: over.id,
+      name: over.name ?? over.id,
+      player_id: over.player_id ?? null,
+      faction: over.faction ?? "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 2,
+      max_evasion_dice: 2,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  function makeState(
+    over: Partial<GameState> & Pick<GameState, "characters" | "turn_order">,
+  ): GameState {
+    return {
+      room_id: "r",
+      version: 1,
+      seed: 1,
+      phase: "combat",
+      machine_state: over.machine_state ?? "IDLE",
+      turn_order: over.turn_order,
+      current_turn_index: over.current_turn_index ?? 0,
+      round_number: 1,
+      characters: over.characters,
+      map_size: [10, 10],
+      obstacles: [],
+      current_turn_summary: null,
+      pending_actions: [],
+    };
+  }
+
+  function TurnHarness({
+    gameState,
+    myPlayerId,
+  }: {
+    gameState: GameState | null;
+    myPlayerId: string | null;
+  }) {
+    useTurnStartSe(gameState, myPlayerId);
+    return null;
+  }
+
+  beforeEach(() => {
+    useAudioStore.setState({ muted: false, volume: 0.6 });
+  });
+
+  it("plays your_turn SE on the transition into the local player's turn", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+
+    const me = makeChar({ id: "c1", player_id: "p1" });
+    const enemy = makeChar({ id: "e1", faction: "enemy" });
+    const stateEnemyTurn = makeState({
+      characters: [me, enemy],
+      turn_order: ["e1", "c1"],
+      current_turn_index: 0,
+    });
+    const stateMyTurn = makeState({
+      characters: [me, enemy],
+      turn_order: ["e1", "c1"],
+      current_turn_index: 1,
+    });
+
+    const { rerender } = render(
+      React.createElement(TurnHarness, {
+        gameState: stateEnemyTurn,
+        myPlayerId: "p1",
+      }),
+    );
+    // First render establishes baseline; no SE yet.
+    expect(playSeSpy).not.toHaveBeenCalled();
+
+    rerender(
+      React.createElement(TurnHarness, {
+        gameState: stateMyTurn,
+        myPlayerId: "p1",
+      }),
+    );
+    expect(playSeSpy).toHaveBeenCalledTimes(1);
+    expect(playSeSpy).toHaveBeenCalledWith("your_turn", 0.6);
+  });
+
+  it("does not replay the SE on consecutive states where it is still my turn", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+
+    const me = makeChar({ id: "c1", player_id: "p1" });
+    const stateEnemy = makeState({
+      characters: [me],
+      turn_order: ["x", "c1"],
+      current_turn_index: 0,
+    });
+    const stateMine = makeState({
+      characters: [me],
+      turn_order: ["x", "c1"],
+      current_turn_index: 1,
+    });
+
+    const { rerender } = render(
+      React.createElement(TurnHarness, {
+        gameState: stateEnemy,
+        myPlayerId: "p1",
+      }),
+    );
+    rerender(
+      React.createElement(TurnHarness, {
+        gameState: stateMine,
+        myPlayerId: "p1",
+      }),
+    );
+    rerender(
+      React.createElement(TurnHarness, {
+        gameState: { ...stateMine, version: 2 },
+        myPlayerId: "p1",
+      }),
+    );
+    expect(playSeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire on the initial render even if it is already my turn", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+
+    const me = makeChar({ id: "c1", player_id: "p1" });
+    const stateMine = makeState({
+      characters: [me],
+      turn_order: ["c1"],
+      current_turn_index: 0,
+    });
+
+    render(
+      React.createElement(TurnHarness, {
+        gameState: stateMine,
+        myPlayerId: "p1",
+      }),
+    );
+    expect(playSeSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not fire while machine_state is non-IDLE", () => {
+    const playSeSpy = vi.fn();
+    setAudioBackend({
+      playSe: playSeSpy,
+      playBgm: vi.fn(),
+      stopBgm: vi.fn(),
+    });
+
+    const me = makeChar({ id: "c1", player_id: "p1" });
+    const stateEnemy = makeState({
+      characters: [me],
+      turn_order: ["x", "c1"],
+      current_turn_index: 0,
+    });
+    const stateMineResolving = makeState({
+      characters: [me],
+      turn_order: ["x", "c1"],
+      current_turn_index: 1,
+      machine_state: "RESOLVING_ACTION",
+    });
+
+    const { rerender } = render(
+      React.createElement(TurnHarness, {
+        gameState: stateEnemy,
+        myPlayerId: "p1",
+      }),
+    );
+    rerender(
+      React.createElement(TurnHarness, {
+        gameState: stateMineResolving,
+        myPlayerId: "p1",
+      }),
+    );
+    expect(playSeSpy).not.toHaveBeenCalled();
   });
 });

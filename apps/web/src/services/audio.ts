@@ -14,7 +14,8 @@ export type SeCue =
   | "victory"
   | "defeat"
   | "cast_art"
-  | "escalation";
+  | "escalation"
+  | "your_turn";
 
 export type BgmCue = "combat" | "exploration";
 
@@ -31,6 +32,7 @@ const SE_URLS: Record<SeCue, string> = {
   defeat: "",
   cast_art: "",
   escalation: "",
+  your_turn: "",
 };
 
 const BGM_URLS: Record<BgmCue, string> = {
