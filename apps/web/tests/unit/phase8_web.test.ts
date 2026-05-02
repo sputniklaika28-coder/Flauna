@@ -24,6 +24,15 @@ import i18n, {
 import ja from "../../src/i18n/ja";
 import en from "../../src/i18n/en";
 import LanguageSwitcher from "../../src/components/common/LanguageSwitcher";
+import {
+  PLAYER_NAME_KEY,
+  SESSION_KEY_PREFIX,
+  clearSession,
+  loadPlayerName,
+  loadSession,
+  savePlayerName,
+  saveSession,
+} from "../../src/services/sessionPersistence";
 
 const STORAGE_KEY = "flauna.lang";
 
@@ -34,6 +43,7 @@ beforeAll(async () => {
 afterEach(() => {
   cleanup();
   window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 
 describe("Phase 8 web: i18n parity & settings keys", () => {
@@ -97,6 +107,69 @@ describe("Phase 8 web: setLanguage persistence", () => {
     expect(i18n.language).toBe("ja");
     expect(window.localStorage.getItem(STORAGE_KEY)).toBe("ja");
     expect(document.documentElement.lang).toBe("ja");
+  });
+});
+
+describe("Phase 8 web: player name persistence", () => {
+  it("returns null when no name is saved", () => {
+    expect(loadPlayerName()).toBeNull();
+  });
+
+  it("saves and loads a player name", () => {
+    savePlayerName("祓魔師A");
+    expect(window.localStorage.getItem(PLAYER_NAME_KEY)).toBe("祓魔師A");
+    expect(loadPlayerName()).toBe("祓魔師A");
+  });
+
+  it("trims whitespace and ignores empty names", () => {
+    savePlayerName("  Alice  ");
+    expect(loadPlayerName()).toBe("Alice");
+
+    savePlayerName("   ");
+    // unchanged
+    expect(loadPlayerName()).toBe("Alice");
+  });
+});
+
+describe("Phase 8 web: session credential persistence", () => {
+  const ROOM = "room-123";
+  const SESSION = {
+    player_id: "p1",
+    player_token: "tok-abc",
+    player_name: "Alice",
+  };
+
+  it("returns null when nothing is saved for the room", () => {
+    expect(loadSession(ROOM)).toBeNull();
+  });
+
+  it("round-trips a session in sessionStorage", () => {
+    saveSession(ROOM, SESSION);
+    expect(window.sessionStorage.getItem(`${SESSION_KEY_PREFIX}${ROOM}`)).toBe(
+      JSON.stringify(SESSION),
+    );
+    expect(loadSession(ROOM)).toEqual(SESSION);
+  });
+
+  it("clears only the targeted room's session", () => {
+    saveSession(ROOM, SESSION);
+    saveSession("other", { ...SESSION, player_id: "p2" });
+    clearSession(ROOM);
+    expect(loadSession(ROOM)).toBeNull();
+    expect(loadSession("other")).not.toBeNull();
+  });
+
+  it("returns null for malformed JSON", () => {
+    window.sessionStorage.setItem(`${SESSION_KEY_PREFIX}${ROOM}`, "{not json");
+    expect(loadSession(ROOM)).toBeNull();
+  });
+
+  it("returns null when stored payload is missing required fields", () => {
+    window.sessionStorage.setItem(
+      `${SESSION_KEY_PREFIX}${ROOM}`,
+      JSON.stringify({ player_id: "p1" }),
+    );
+    expect(loadSession(ROOM)).toBeNull();
   });
 });
 

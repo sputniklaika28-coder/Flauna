@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { createRoom } from "../services/api";
+import { loadPlayerName, savePlayerName } from "../services/sessionPersistence";
 import { LanguageSwitcher } from "../components/common";
 
 export default function Lobby() {
@@ -11,11 +12,22 @@ export default function Lobby() {
   const [playerName, setPlayerName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
 
+  useEffect(() => {
+    const saved = loadPlayerName();
+    if (saved) setPlayerName(saved);
+  }, []);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Phase 1: wire up createRoom
+    savePlayerName(playerName);
     const res = await createRoom({ scenario_id: scenarioId, player_name: playerName });
     navigate(`/room/${res.room_id}`);
+  };
+
+  const handleJoin = () => {
+    if (!joinRoomId) return;
+    savePlayerName(playerName);
+    navigate(`/room/${joinRoomId}`);
   };
 
   return (
@@ -41,6 +53,7 @@ export default function Lobby() {
         <label className="flex flex-col gap-1">
           <span>{t("lobby.playerName")}</span>
           <input
+            data-testid="lobby-player-name"
             className="border rounded px-2 py-1"
             value={playerName}
             onChange={(e) => setPlayerName(e.target.value)}
@@ -64,7 +77,7 @@ export default function Lobby() {
         <button
           type="button"
           className="bg-green-600 text-white rounded px-4 py-2"
-          onClick={() => joinRoomId && navigate(`/room/${joinRoomId}`)}
+          onClick={handleJoin}
         >
           {t("lobby.joinRoom")}
         </button>
