@@ -806,6 +806,172 @@ describe("Phase 9 web: QuickActionBar submitting indicator", () => {
 });
 
 // ---------------------------------------------------------------------------
+// QuickActionBar — keyboard / a11y (§17 toolbar pattern)
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: QuickActionBar keyboard + a11y (§17)", () => {
+  function makeChar(
+    over: Partial<Character> & Pick<Character, "id">,
+  ): Character {
+    return {
+      id: over.id,
+      name: over.name ?? over.id,
+      player_id: over.player_id ?? null,
+      faction: over.faction ?? "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 2,
+      max_evasion_dice: 2,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: over.arts ?? [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  function makeMyTurnState(arts: Character["arts"] = []): GameState {
+    const me = makeChar({ id: "c1", player_id: "p1", arts });
+    return {
+      room_id: "r",
+      version: 1,
+      seed: 1,
+      phase: "combat",
+      machine_state: "IDLE",
+      turn_order: ["c1"],
+      current_turn_index: 0,
+      round_number: 1,
+      characters: [me],
+      map_size: [10, 10],
+      obstacles: [],
+      current_turn_summary: null,
+      pending_actions: [],
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    usePendingStore.setState({ submittingTurnAction: false });
+  });
+
+  afterEach(() => {
+    useGameStore.setState({
+      gameState: null,
+      myPlayerId: null,
+    } as never);
+    usePendingStore.setState({ submittingTurnAction: false });
+  });
+
+  function renderBar() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(QuickActionBar, { onEndTurn: () => {} }),
+      ),
+    );
+  }
+
+  it("declares role=toolbar with the §17 aria-label", () => {
+    useGameStore.setState({
+      gameState: makeMyTurnState(),
+      myPlayerId: "p1",
+    } as never);
+    renderBar();
+    const bar = screen.getByTestId("quickaction-bar");
+    expect(bar.getAttribute("role")).toBe("toolbar");
+    expect(bar.getAttribute("aria-label")).toBe(ja["room.quickAction.toolbar"]);
+  });
+
+  it("makes the first toolbar item tabbable (roving tabindex)", () => {
+    useGameStore.setState({
+      gameState: makeMyTurnState(["art-1"]),
+      myPlayerId: "p1",
+    } as never);
+    renderBar();
+    const castArt = screen.getByTestId("quickbar-cast-art") as HTMLButtonElement;
+    const endTurn = screen.getByTestId("quickbar-end-turn") as HTMLButtonElement;
+    expect(castArt.tabIndex).toBe(0);
+    expect(endTurn.tabIndex).toBe(-1);
+  });
+
+  it("ArrowRight moves focus to the next toolbar item and rotates tabindex", () => {
+    useGameStore.setState({
+      gameState: makeMyTurnState(["art-1"]),
+      myPlayerId: "p1",
+    } as never);
+    renderBar();
+    const bar = screen.getByTestId("quickaction-bar");
+    const castArt = screen.getByTestId("quickbar-cast-art") as HTMLButtonElement;
+    const endTurn = screen.getByTestId("quickbar-end-turn") as HTMLButtonElement;
+    castArt.focus();
+    fireEvent.keyDown(bar, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(endTurn);
+    expect(endTurn.tabIndex).toBe(0);
+    expect(castArt.tabIndex).toBe(-1);
+  });
+
+  it("ArrowLeft from the first item wraps to the last", () => {
+    useGameStore.setState({
+      gameState: makeMyTurnState(["art-1"]),
+      myPlayerId: "p1",
+    } as never);
+    renderBar();
+    const bar = screen.getByTestId("quickaction-bar");
+    const castArt = screen.getByTestId("quickbar-cast-art") as HTMLButtonElement;
+    const endTurn = screen.getByTestId("quickbar-end-turn") as HTMLButtonElement;
+    castArt.focus();
+    fireEvent.keyDown(bar, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(endTurn);
+  });
+
+  it("Home jumps to the first item and End jumps to the last", () => {
+    useGameStore.setState({
+      gameState: makeMyTurnState(["art-1"]),
+      myPlayerId: "p1",
+    } as never);
+    renderBar();
+    const bar = screen.getByTestId("quickaction-bar");
+    const castArt = screen.getByTestId("quickbar-cast-art") as HTMLButtonElement;
+    const endTurn = screen.getByTestId("quickbar-end-turn") as HTMLButtonElement;
+    fireEvent.keyDown(bar, { key: "End" });
+    expect(document.activeElement).toBe(endTurn);
+    fireEvent.keyDown(bar, { key: "Home" });
+    expect(document.activeElement).toBe(castArt);
+  });
+
+  it("when the actor has no arts, end-turn alone is the sole toolbar item", () => {
+    useGameStore.setState({
+      gameState: makeMyTurnState([]),
+      myPlayerId: "p1",
+    } as never);
+    renderBar();
+    expect(screen.queryByTestId("quickbar-cast-art")).toBeNull();
+    const endTurn = screen.getByTestId("quickbar-end-turn") as HTMLButtonElement;
+    expect(endTurn.tabIndex).toBe(0);
+  });
+
+  it("ja and en expose the toolbar a11y label", () => {
+    expect(ja).toHaveProperty("room.quickAction.toolbar");
+    expect(en).toHaveProperty("room.quickAction.toolbar");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // ChatPanel — sticky auto-scroll + jump-to-latest button
 // ---------------------------------------------------------------------------
 
