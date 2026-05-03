@@ -48,6 +48,7 @@ import CombatResultModal from "../../src/components/dialogs/CombatResultModal";
 import AssessmentScreen from "../../src/components/dialogs/AssessmentScreen";
 import SideMenu from "../../src/components/layout/SideMenu";
 import ContextMenu from "../../src/components/map/ContextMenu";
+import ActionDetailModal from "../../src/components/action/ActionDetailModal";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -2674,5 +2675,186 @@ describe("Phase 9 web: ContextMenu keyboard + a11y (§17, §5-2-2)", () => {
       ),
     );
     expect(container.firstChild).toBeNull();
+  });
+});
+
+describe("Phase 9 web: ActionDetailModal keyboard + a11y (§17)", () => {
+  function makeChar(
+    id: string,
+    name: string,
+    overrides: Partial<Character> = {},
+  ): Character {
+    return {
+      id,
+      name,
+      player_id: null,
+      faction: "enemy",
+      is_boss: false,
+      tai: 4,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 0,
+      max_evasion_dice: 0,
+      position: [0, 0],
+      equipped_weapons: ["w1"],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+      ...overrides,
+    };
+  }
+
+  function renderModal(onSubmit?: ReturnType<typeof vi.fn>) {
+    const submit = onSubmit ?? vi.fn();
+    const utils = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ActionDetailModal, { onSubmit: submit }),
+      ),
+    );
+    return { ...utils, onSubmit: submit };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    const me = makeChar("p1c", "自分", {
+      player_id: "p1",
+      faction: "pc",
+      equipped_weapons: ["katana"],
+    });
+    const target = makeChar("e1", "怨霊武者");
+    useGameStore.setState({
+      gameState: { characters: [me, target] } as unknown as GameState,
+      myPlayerId: "p1",
+    } as never);
+    useUIStore.setState({
+      activeModal: "action_detail",
+      actionDetailTargetId: "e1",
+    } as never);
+  });
+
+  afterEach(() => {
+    useUIStore.setState({
+      activeModal: null,
+      actionDetailTargetId: null,
+    } as never);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  it("declares role=dialog with aria-modal and aria-labelledby pointing at the title", () => {
+    renderModal();
+    const dialog = screen.getByTestId("action-detail-modal");
+    expect(dialog.getAttribute("role")).toBe("dialog");
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    const labelId = dialog.getAttribute("aria-labelledby");
+    expect(labelId).not.toBeNull();
+    expect(document.getElementById(labelId!)?.textContent).toBe("攻撃の設定");
+  });
+
+  it("renders nothing when no actionDetail target is set", () => {
+    useUIStore.setState({
+      activeModal: null,
+      actionDetailTargetId: null,
+    } as never);
+    const { container } = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ActionDetailModal, { onSubmit: vi.fn() }),
+      ),
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("autofocuses the submit button on open", async () => {
+    renderModal();
+    const submit = screen.getByTestId("action-detail-submit");
+    await waitFor(() => expect(document.activeElement).toBe(submit));
+  });
+
+  it("Escape closes the modal without submitting", () => {
+    const { onSubmit } = renderModal();
+    const dialog = screen.getByTestId("action-detail-modal");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(useUIStore.getState().activeModal).toBeNull();
+  });
+
+  it("Enter submits when focus is outside form controls", () => {
+    const { onSubmit } = renderModal();
+    const dialog = screen.getByTestId("action-detail-modal");
+    fireEvent.keyDown(dialog, { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const payload = onSubmit.mock.calls[0]![0] as { targetId: string };
+    expect(payload.targetId).toBe("e1");
+    expect(useUIStore.getState().activeModal).toBeNull();
+  });
+
+  it("Enter on a form input does NOT submit (avoids double submit)", () => {
+    const { onSubmit } = renderModal();
+    const range = screen
+      .getByTestId("action-detail-modal")
+      .querySelector<HTMLInputElement>("input[type='range']")!;
+    fireEvent.keyDown(range, { key: "Enter" });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Enter with modifier keys is ignored", () => {
+    const { onSubmit } = renderModal();
+    const dialog = screen.getByTestId("action-detail-modal");
+    fireEvent.keyDown(dialog, { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(dialog, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(dialog, { key: "Enter", metaKey: true });
+    fireEvent.keyDown(dialog, { key: "Enter", altKey: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Tab from the last focusable wraps to the first (focus trap)", () => {
+    renderModal();
+    const dialog = screen.getByTestId("action-detail-modal");
+    const focusables =
+      dialog.querySelectorAll<HTMLElement>(
+        "button, input:not([type='hidden'])",
+      );
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    last.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+  });
+
+  it("Shift+Tab from the first focusable wraps to the last (focus trap)", () => {
+    renderModal();
+    const dialog = screen.getByTestId("action-detail-modal");
+    const focusables =
+      dialog.querySelectorAll<HTMLElement>(
+        "button, input:not([type='hidden'])",
+      );
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    first.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  it("Cancel button closes the modal without submitting", () => {
+    const { onSubmit } = renderModal();
+    const cancel = screen.getByTestId("action-detail-cancel");
+    fireEvent.click(cancel);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(useUIStore.getState().activeModal).toBeNull();
   });
 });
