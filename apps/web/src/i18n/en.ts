@@ -161,6 +161,8 @@ const en = {
   "room.notice.reconnected": "Reconnected to the server",
   "room.submitting": "Submitting…",
   "room.chat.jumpToLatest": "{{n}} new ↓",
+  "room.chat.logLabel": "Chat log",
+  "room.chat.inputLabel": "Message input",
   "room.system.sessionRestored": "Session restored",
   "room.system.sessionDisconnected": "Session ended: {{reason}}",
   "room.system.combatVictory": "Combat ended: Victory!",

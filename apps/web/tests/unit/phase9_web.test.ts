@@ -981,6 +981,116 @@ describe("Phase 9 web: ChatPanel sticky scroll", () => {
 });
 
 // ---------------------------------------------------------------------------
+// ChatPanel — keyboard / a11y (§17-1)
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: ChatPanel keyboard + a11y (§17)", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useChatStore.setState({ entries: [] });
+    useGameStore.setState({
+      gameState: {
+        room_id: "r",
+        version: 1,
+        seed: 1,
+        phase: "combat",
+        machine_state: "IDLE",
+        turn_order: [],
+        current_turn_index: 0,
+        round_number: 1,
+        characters: [],
+        map_size: [10, 10],
+        obstacles: [],
+        current_turn_summary: null,
+        pending_actions: [],
+      },
+    } as never);
+  });
+
+  afterEach(() => {
+    useChatStore.setState({ entries: [] });
+    useGameStore.setState({ gameState: null } as never);
+  });
+
+  function renderPanel(onSend: (text: string) => void = () => {}) {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ChatPanel, { onSendStatement: onSend }),
+      ),
+    );
+  }
+
+  it("ja and en expose the chat log/input a11y keys", () => {
+    expect(ja).toHaveProperty("room.chat.logLabel");
+    expect(ja).toHaveProperty("room.chat.inputLabel");
+    expect(en).toHaveProperty("room.chat.logLabel");
+    expect(en).toHaveProperty("room.chat.inputLabel");
+  });
+
+  it("declares role=log with aria-live=polite and aria-relevant=additions", () => {
+    renderPanel();
+    const scrollEl = screen.getByTestId("chatpanel-scroll");
+    expect(scrollEl.getAttribute("role")).toBe("log");
+    expect(scrollEl.getAttribute("aria-live")).toBe("polite");
+    expect(scrollEl.getAttribute("aria-relevant")).toBe("additions");
+    expect(scrollEl.getAttribute("aria-label")).toBe("チャットログ");
+  });
+
+  it("labels the log in English when the language is en", async () => {
+    await i18n.changeLanguage("en");
+    renderPanel();
+    const scrollEl = screen.getByTestId("chatpanel-scroll");
+    expect(scrollEl.getAttribute("aria-label")).toBe("Chat log");
+    await i18n.changeLanguage("ja");
+  });
+
+  it("marks streaming entries as aria-busy so SRs wait for completion", () => {
+    renderPanel();
+    act(() => {
+      // Inject a streaming GM narrative directly to mimic spec §5-2-5.
+      useChatStore.setState({
+        entries: [
+          {
+            id: "g1",
+            kind: "gm_narrative",
+            text: "narr",
+            isStreaming: true,
+          },
+          {
+            id: "s1",
+            kind: "system",
+            text: "done",
+          },
+        ],
+      } as never);
+    });
+    const log = screen.getByTestId("chatpanel-scroll");
+    const rows = Array.from(log.querySelectorAll("div.mb-2"));
+    // Streaming row sets aria-busy=true.
+    expect(rows[0]?.getAttribute("aria-busy")).toBe("true");
+    // Completed row omits aria-busy entirely.
+    expect(rows[1]?.hasAttribute("aria-busy")).toBe(false);
+  });
+
+  it("exposes an aria-label on the message input", () => {
+    renderPanel();
+    const input = screen.getByTestId("chatpanel-input");
+    expect(input.getAttribute("aria-label")).toBe("メッセージ入力");
+  });
+
+  it("submits the message on Enter (existing behavior preserved)", () => {
+    const onSend = vi.fn();
+    renderPanel(onSend);
+    const input = screen.getByTestId("chatpanel-input") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "hello" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onSend).toHaveBeenCalledWith("hello");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // useReconnectToast — surfaces §9-3 reconnection UX
 // ---------------------------------------------------------------------------
 
