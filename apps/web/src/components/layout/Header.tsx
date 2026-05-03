@@ -87,20 +87,33 @@ export default function Header() {
             </span>
           </>
         )}
-        <span
-          className={`w-2 h-2 rounded-full ${
-            online ? STATUS_COLORS[connectionStatus] ?? "bg-gray-500" : "bg-red-500"
-          }`}
-          title={online ? connectionStatus : "OFFLINE"}
-          data-testid="connection-dot"
-        />
-        <span className="text-gray-400" data-testid="connection-label">
-          {!online
-            ? t("room.offline")
-            : connectionStatus === "ACTIVE"
-              ? t("room.connected")
-              : t("room.connecting")}
-        </span>
+        {/* Spec §17: connection state changes are surfaced to SR users as a
+            named, polite live region so transitions like ACTIVE → DISCONNECTED
+            are announced rather than silently flipping a colored dot. */}
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          aria-label={t("room.connection.label")}
+          data-testid="connection-status"
+          className="flex items-center gap-2"
+        >
+          <span
+            aria-hidden="true"
+            className={`w-2 h-2 rounded-full ${
+              online ? STATUS_COLORS[connectionStatus] ?? "bg-gray-500" : "bg-red-500"
+            }`}
+            title={online ? connectionStatus : "OFFLINE"}
+            data-testid="connection-dot"
+          />
+          <span className="text-gray-400" data-testid="connection-label">
+            {!online
+              ? t("room.offline")
+              : connectionStatus === "ACTIVE"
+                ? t("room.connected")
+                : t("room.connecting")}
+          </span>
+        </div>
         <AudioSettings />
         <LanguageSwitcher />
         {gameState && (
