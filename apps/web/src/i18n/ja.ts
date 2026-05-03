@@ -89,6 +89,7 @@ const ja = {
   "room.castArt.targetType.single": "単体対象",
   "room.castArt.targetType.area": "範囲（術者中心）",
   "room.castArt.targetType.self": "自身",
+  "room.castArt.cutsceneAnnounce": "{{caster}}が『{{art}}』を発動！",
   "room.hardMode.title": "戦況",
   "room.hardMode.level.normal": "通常",
   "room.hardMode.level.hard": "ハードモード",

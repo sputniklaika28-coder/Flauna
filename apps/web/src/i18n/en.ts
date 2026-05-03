@@ -89,6 +89,7 @@ const en = {
   "room.castArt.targetType.single": "Single target",
   "room.castArt.targetType.area": "Area (caster-centered)",
   "room.castArt.targetType.self": "Self",
+  "room.castArt.cutsceneAnnounce": "{{caster}} casts “{{art}}”!",
   "room.hardMode.title": "Combat Pressure",
   "room.hardMode.level.normal": "Normal",
   "room.hardMode.level.hard": "Hard Mode",
