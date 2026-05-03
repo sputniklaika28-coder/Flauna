@@ -1,4 +1,5 @@
 import { Stage, Layer, Rect, Line, Circle, Text, Group } from "react-konva";
+import { useTranslation } from "react-i18next";
 import { useGameStore, useUIStore } from "../../stores";
 import type {
   BarrierEffect,
@@ -219,13 +220,19 @@ interface Props {
 }
 
 export default function GameMap({ onCharRightClick }: Props) {
+  const { t } = useTranslation();
   const { gameState } = useGameStore();
   const { mapZoom, selectedCharId, setSelectedChar } = useUIStore();
 
   if (!gameState) {
     return (
-      <div className="flex-1 bg-gray-800 flex items-center justify-center text-gray-500">
-        マップデータなし
+      <div
+        role="region"
+        aria-label={t("room.map.region")}
+        className="flex-1 bg-gray-800 flex items-center justify-center text-gray-500"
+        data-testid="game-map-empty"
+      >
+        {t("room.map.empty")}
       </div>
     );
   }
@@ -273,9 +280,104 @@ export default function GameMap({ onCharRightClick }: Props) {
     );
   }
 
+  const currentActor = currentActorId
+    ? characters.find((c) => c.id === currentActorId) ?? null
+    : null;
+
+  const factionLabel = (faction: string): string => {
+    const key = `room.map.faction.${faction}`;
+    const label = t(key);
+    return label === key ? faction : label;
+  };
+
   return (
-    <div className="flex-1 overflow-auto bg-gray-800 flex items-center justify-center">
-      <Stage width={width} height={height}>
+    <div
+      role="region"
+      aria-label={t("room.map.region")}
+      data-testid="game-map"
+      className="flex-1 overflow-auto bg-gray-800 flex items-center justify-center"
+    >
+      {/* §17 a11y: parallel DOM surface so keyboard / screen-reader users can
+          inspect and act on the otherwise canvas-only map. */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        data-testid="game-map-current-actor"
+      >
+        {currentActor
+          ? t("room.map.currentActor", { name: currentActor.name })
+          : t("room.map.noCurrentActor")}
+      </div>
+      <ul
+        role="list"
+        aria-label={t("room.map.charList")}
+        className="sr-only"
+        data-testid="game-map-char-list"
+      >
+        {characters.map((char) => {
+          const isCurrent = char.id === currentActorId;
+          const isSelected = char.id === selectedCharId;
+          const summary = t("room.map.charSummary", {
+            name: char.name,
+            faction: factionLabel(char.faction),
+            hp: char.hp,
+            maxHp: char.max_hp,
+            x: char.position[0],
+            y: char.position[1],
+          });
+          const stateBits: string[] = [];
+          if (isCurrent) stateBits.push(t("room.map.charCurrent"));
+          if (char.hp <= 0) stateBits.push(t("room.map.charDown"));
+          const fullSummary = stateBits.length
+            ? `${summary} · ${stateBits.join(" · ")}`
+            : summary;
+          return (
+            <li
+              key={char.id}
+              data-testid={`game-map-char-${char.id}`}
+              {...(isCurrent ? { "aria-current": "true" } : {})}
+            >
+              <button
+                type="button"
+                aria-pressed={isSelected}
+                aria-label={
+                  isSelected
+                    ? t("room.map.deselectChar", { name: char.name })
+                    : t("room.map.selectChar", { name: char.name })
+                }
+                data-testid={`game-map-select-${char.id}`}
+                onClick={() =>
+                  setSelectedChar(isSelected ? null : char.id)
+                }
+              >
+                {fullSummary}
+              </button>
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-label={t("room.map.openCharActions", {
+                  name: char.name,
+                })}
+                data-testid={`game-map-actions-${char.id}`}
+                onClick={(e) => {
+                  const rect = (
+                    e.currentTarget as HTMLButtonElement
+                  ).getBoundingClientRect();
+                  onCharRightClick(char.id, {
+                    x: rect.left,
+                    y: rect.bottom,
+                  });
+                }}
+              >
+                {t("room.map.openCharActions", { name: char.name })}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <Stage width={width} height={height} aria-hidden="true">
         <Layer>
           {/* background */}
           <Rect x={0} y={0} width={width} height={height} fill="#1f2937" />
