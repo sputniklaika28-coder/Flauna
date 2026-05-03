@@ -3,6 +3,11 @@ import { useTranslation } from "react-i18next";
 import { useChatStore, useGameStore, useUIStore } from "../../stores";
 import type { ChatEntry } from "../../types";
 
+// Spec §17 keeps the chat panel as a labelled landmark, with the id/aria-controls
+// handshake against the Header toggle so SR users learn the disclosure
+// relationship and can close from the keyboard with Escape.
+export const CHAT_PANEL_ID = "chatpanel-panel";
+
 function EntryRow({ entry }: { entry: ChatEntry }) {
   const prefix =
     entry.kind === "gm_narrative"
@@ -99,6 +104,18 @@ export default function ChatPanel({ onSendStatement }: Props) {
     scrollToBottom();
   };
 
+  useEffect(() => {
+    if (!chatPanelOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        closeMobilePanels();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [chatPanelOpen, closeMobilePanels]);
+
   return (
     <>
       {chatPanelOpen && (
@@ -110,7 +127,9 @@ export default function ChatPanel({ onSendStatement }: Props) {
           data-testid="chatpanel-backdrop"
         />
       )}
-      <div
+      <aside
+        id={CHAT_PANEL_ID}
+        aria-label={t("room.chat.panelLabel")}
         data-testid="chatpanel"
         className={`w-64 bg-gray-900 text-white flex flex-col flex-shrink-0
           lg:relative lg:translate-x-0 lg:flex
@@ -162,7 +181,7 @@ export default function ChatPanel({ onSendStatement }: Props) {
           {t("room.send")}
         </button>
       </div>
-      </div>
+      </aside>
     </>
   );
 }

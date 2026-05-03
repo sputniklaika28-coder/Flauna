@@ -166,6 +166,7 @@ const ja = {
   "room.chat.jumpToLatest": "新着 {{n}} 件 ↓",
   "room.chat.logLabel": "チャットログ",
   "room.chat.inputLabel": "メッセージ入力",
+  "room.chat.panelLabel": "チャット",
   "room.system.sessionRestored": "セッション復元",
   "room.system.sessionDisconnected": "セッション切断: {{reason}}",
   "room.system.combatVictory": "戦闘終了: 勝利！",

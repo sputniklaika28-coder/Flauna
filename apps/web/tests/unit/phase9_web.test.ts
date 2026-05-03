@@ -3700,3 +3700,142 @@ describe("Phase 9 web: SideMenu mobile disclosure (§17)", () => {
     expect(en).toHaveProperty("room.sideMenu.label");
   });
 });
+
+// ---------------------------------------------------------------------------
+// ChatPanel / Header mobile disclosure — §17 keyboard a11y
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: ChatPanel mobile disclosure (§17)", () => {
+  function makeState(): GameState {
+    return {
+      room_id: "r",
+      version: 1,
+      seed: 1,
+      phase: "combat" as GamePhase,
+      machine_state: "IDLE",
+      current_turn_index: 0,
+      round_number: 1,
+      map_size: [10, 10] as [number, number],
+      obstacles: [],
+      current_turn_summary: null,
+      pending_actions: [],
+      characters: [],
+      turn_order: [],
+    } as unknown as GameState;
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useUIStore.setState({ sideMenuOpen: false, chatPanelOpen: false });
+    useGameStore.setState({
+      gameState: makeState(),
+      myPlayerId: "p1",
+    } as never);
+  });
+
+  afterEach(() => {
+    useUIStore.setState({ sideMenuOpen: false, chatPanelOpen: false });
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  function renderChatPanel() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ChatPanel, { onSendStatement: () => {} }),
+      ),
+    );
+  }
+
+  function renderHeader() {
+    return render(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(Header),
+        ),
+      ),
+    );
+  }
+
+  it("labels the chat panel as a complementary landmark with the §17 aria-label (ja)", () => {
+    renderChatPanel();
+    const aside = screen.getByTestId("chatpanel");
+    expect(aside.tagName.toLowerCase()).toBe("aside");
+    expect(aside.getAttribute("aria-label")).toBe(ja["room.chat.panelLabel"]);
+    expect(aside.getAttribute("id")).toBe("chatpanel-panel");
+  });
+
+  it("uses the localized chat panel label in en", async () => {
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    renderChatPanel();
+    const aside = screen.getByTestId("chatpanel");
+    expect(aside.getAttribute("aria-label")).toBe(en["room.chat.panelLabel"]);
+    cleanup();
+    await act(async () => {
+      await i18n.changeLanguage("ja");
+    });
+  });
+
+  it("wires the Header chat toggle to the panel via aria-controls + aria-expanded", () => {
+    renderHeader();
+    const toggle = screen.getByTestId("toggle-chatpanel");
+    expect(toggle.getAttribute("aria-controls")).toBe("chatpanel-panel");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    act(() => {
+      useUIStore.getState().toggleChatPanel();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("closes the chat panel on Escape when it is open", () => {
+    act(() => {
+      useUIStore.setState({ chatPanelOpen: true });
+    });
+    renderChatPanel();
+    expect(useUIStore.getState().chatPanelOpen).toBe(true);
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+    });
+    expect(useUIStore.getState().chatPanelOpen).toBe(false);
+  });
+
+  it("does not toggle on Escape when the chat panel is already closed", () => {
+    act(() => {
+      useUIStore.setState({ chatPanelOpen: false });
+    });
+    renderChatPanel();
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+    });
+    expect(useUIStore.getState().chatPanelOpen).toBe(false);
+  });
+
+  it("ignores non-Escape keys", () => {
+    act(() => {
+      useUIStore.setState({ chatPanelOpen: true });
+    });
+    renderChatPanel();
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "a", bubbles: true }),
+      );
+    });
+    expect(useUIStore.getState().chatPanelOpen).toBe(true);
+  });
+
+  it("ja and en both expose the §17 chat panel landmark label", () => {
+    expect(ja).toHaveProperty("room.chat.panelLabel");
+    expect(en).toHaveProperty("room.chat.panelLabel");
+  });
+});

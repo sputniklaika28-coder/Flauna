@@ -166,6 +166,7 @@ const en = {
   "room.chat.jumpToLatest": "{{n}} new ↓",
   "room.chat.logLabel": "Chat log",
   "room.chat.inputLabel": "Message input",
+  "room.chat.panelLabel": "Chat",
   "room.system.sessionRestored": "Session restored",
   "room.system.sessionDisconnected": "Session ended: {{reason}}",
   "room.system.combatVictory": "Combat ended: Victory!",
