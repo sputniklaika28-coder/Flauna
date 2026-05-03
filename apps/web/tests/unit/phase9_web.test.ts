@@ -49,6 +49,7 @@ import AssessmentScreen from "../../src/components/dialogs/AssessmentScreen";
 import SideMenu from "../../src/components/layout/SideMenu";
 import ContextMenu from "../../src/components/map/ContextMenu";
 import ActionDetailModal from "../../src/components/action/ActionDetailModal";
+import CastArtModal from "../../src/components/dialogs/CastArtModal";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -2853,6 +2854,206 @@ describe("Phase 9 web: ActionDetailModal keyboard + a11y (§17)", () => {
   it("Cancel button closes the modal without submitting", () => {
     const { onSubmit } = renderModal();
     const cancel = screen.getByTestId("action-detail-cancel");
+    fireEvent.click(cancel);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(useUIStore.getState().activeModal).toBeNull();
+  });
+});
+
+describe("Phase 9 web: CastArtModal keyboard + a11y (§17)", () => {
+  function makeChar(
+    id: string,
+    name: string,
+    overrides: Partial<Character> = {},
+  ): Character {
+    return {
+      id,
+      name,
+      player_id: null,
+      faction: "enemy",
+      is_boss: false,
+      tai: 4,
+      rei: 4,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 0,
+      max_evasion_dice: 0,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+      ...overrides,
+    };
+  }
+
+  function renderModal(onSubmit?: ReturnType<typeof vi.fn>) {
+    const submit = onSubmit ?? vi.fn();
+    const utils = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(CastArtModal, { onSubmit: submit }),
+      ),
+    );
+    return { ...utils, onSubmit: submit };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    const me = makeChar("p1c", "自分", {
+      player_id: "p1",
+      faction: "pc",
+      arts: ["反閃歩法", "霊弾発射"],
+    });
+    const target = makeChar("e1", "怨霊武者");
+    useGameStore.setState({
+      gameState: { characters: [me, target] } as unknown as GameState,
+      myPlayerId: "p1",
+    } as never);
+    useUIStore.setState({
+      activeModal: "cast_art",
+      castArtTargetId: null,
+    } as never);
+  });
+
+  afterEach(() => {
+    useUIStore.setState({
+      activeModal: null,
+      castArtTargetId: null,
+    } as never);
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  it("declares role=dialog with aria-modal and aria-labelledby pointing at the title", () => {
+    renderModal();
+    const dialog = screen.getByTestId("cast-art-modal");
+    expect(dialog.getAttribute("role")).toBe("dialog");
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    const labelId = dialog.getAttribute("aria-labelledby");
+    expect(labelId).not.toBeNull();
+    expect(document.getElementById(labelId!)?.textContent).toBe("祓魔術");
+  });
+
+  it("renders nothing when the modal is not open", () => {
+    useUIStore.setState({ activeModal: null } as never);
+    const { container } = render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(CastArtModal, { onSubmit: vi.fn() }),
+      ),
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it("autofocuses the cancel button on open", async () => {
+    renderModal();
+    const cancel = screen.getByTestId("cast-art-cancel");
+    await waitFor(() => expect(document.activeElement).toBe(cancel));
+  });
+
+  it("Escape closes the modal without submitting", () => {
+    const { onSubmit } = renderModal();
+    const dialog = screen.getByTestId("cast-art-modal");
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(useUIStore.getState().activeModal).toBeNull();
+  });
+
+  it("Enter does NOT submit when no art is selected (canSubmit is false)", () => {
+    const { onSubmit } = renderModal();
+    const dialog = screen.getByTestId("cast-art-modal");
+    fireEvent.keyDown(dialog, { key: "Enter" });
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(useUIStore.getState().activeModal).toBe("cast_art");
+  });
+
+  it("Enter submits once an art with no target is selected (self target)", () => {
+    const { onSubmit } = renderModal();
+    const dialog = screen.getByTestId("cast-art-modal");
+    const radios = dialog.querySelectorAll<HTMLInputElement>(
+      "input[type='radio'][name='art']",
+    );
+    const self = Array.from(radios).find((r) => r.value === "反閃歩法")!;
+    fireEvent.click(self);
+    fireEvent.keyDown(dialog, { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const payload = onSubmit.mock.calls[0]![0] as {
+      art_name: string;
+      target?: string;
+    };
+    expect(payload.art_name).toBe("反閃歩法");
+    expect(payload.target).toBe("p1c");
+    expect(useUIStore.getState().activeModal).toBeNull();
+  });
+
+  it("Enter on a form input does NOT submit (avoids double submit)", () => {
+    const { onSubmit } = renderModal();
+    const dialog = screen.getByTestId("cast-art-modal");
+    const radios = dialog.querySelectorAll<HTMLInputElement>(
+      "input[type='radio'][name='art']",
+    );
+    const self = Array.from(radios).find((r) => r.value === "反閃歩法")!;
+    fireEvent.click(self);
+    fireEvent.keyDown(self, { key: "Enter" });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Enter with modifier keys is ignored", () => {
+    const { onSubmit } = renderModal();
+    const dialog = screen.getByTestId("cast-art-modal");
+    const self = Array.from(
+      dialog.querySelectorAll<HTMLInputElement>("input[type='radio'][name='art']"),
+    ).find((r) => r.value === "反閃歩法")!;
+    fireEvent.click(self);
+    fireEvent.keyDown(dialog, { key: "Enter", shiftKey: true });
+    fireEvent.keyDown(dialog, { key: "Enter", ctrlKey: true });
+    fireEvent.keyDown(dialog, { key: "Enter", metaKey: true });
+    fireEvent.keyDown(dialog, { key: "Enter", altKey: true });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("Tab from the last focusable wraps to the first (focus trap)", () => {
+    renderModal();
+    const dialog = screen.getByTestId("cast-art-modal");
+    const focusables = dialog.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), input:not([type='hidden']):not([disabled])",
+    );
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    last.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+  });
+
+  it("Shift+Tab from the first focusable wraps to the last (focus trap)", () => {
+    renderModal();
+    const dialog = screen.getByTestId("cast-art-modal");
+    const focusables = dialog.querySelectorAll<HTMLElement>(
+      "button:not([disabled]), input:not([type='hidden']):not([disabled])",
+    );
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    first.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  it("Cancel button closes the modal without submitting", () => {
+    const { onSubmit } = renderModal();
+    const cancel = screen.getByTestId("cast-art-cancel");
     fireEvent.click(cancel);
     expect(onSubmit).not.toHaveBeenCalled();
     expect(useUIStore.getState().activeModal).toBeNull();

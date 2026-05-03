@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, useUIStore } from "../../stores";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { ARTS, getArt } from "../../utils/arts";
 import type { ArtName, CastArtPayload } from "../../types";
 
@@ -12,6 +13,15 @@ export default function CastArtModal({ onSubmit }: Props) {
   const { t } = useTranslation();
   const { activeModal, castArtTargetId, closeModal } = useUIStore();
   const { gameState, myPlayerId } = useGameStore();
+
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const focusedOnceRef = useRef(false);
+  const cancelRef = useCallback((node: HTMLButtonElement | null) => {
+    if (node && !focusedOnceRef.current) {
+      focusedOnceRef.current = true;
+      node.focus();
+    }
+  }, []);
 
   const myChar = gameState?.characters.find((c) => c.player_id === myPlayerId);
   const knownArtNames = useMemo(
@@ -27,6 +37,7 @@ export default function CastArtModal({ onSubmit }: Props) {
   const [targetId, setTargetId] = useState<string | null>(castArtTargetId);
 
   const isOpen = activeModal === "cast_art";
+  useFocusTrap(overlayRef, isOpen);
 
   const selectedArt = artName ? getArt(artName) : null;
   const needsTarget = selectedArt?.target_type === "single";
@@ -54,15 +65,42 @@ export default function CastArtModal({ onSubmit }: Props) {
     closeModal();
   }, [selectedArt, needsTarget, targetId, myChar, onSubmit, closeModal]);
 
-  if (!isOpen || !myChar) return null;
+  if (!isOpen || !myChar) {
+    focusedOnceRef.current = false;
+    return null;
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeModal();
+      return;
+    }
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+      return;
+    }
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "TEXTAREA" || tag === "SELECT" || tag === "INPUT") return;
+    if (!canSubmit) return;
+    e.preventDefault();
+    handleSubmit();
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div
-        className="bg-gray-900 border border-purple-500 rounded-lg p-6 w-[28rem] text-white"
-        data-testid="cast-art-modal"
-      >
-        <h2 className="text-lg font-bold text-purple-300 mb-3">
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="cast-art-title"
+      data-testid="cast-art-modal"
+      onKeyDown={handleKeyDown}
+    >
+      <div className="bg-gray-900 border border-purple-500 rounded-lg p-6 w-[28rem] text-white">
+        <h2
+          id="cast-art-title"
+          className="text-lg font-bold text-purple-300 mb-3"
+        >
           {t("room.castArt.title")}
         </h2>
 
@@ -137,7 +175,9 @@ export default function CastArtModal({ onSubmit }: Props) {
 
         <div className="flex gap-2 mt-2">
           <button
+            ref={cancelRef}
             onClick={closeModal}
+            data-testid="cast-art-cancel"
             className="flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded py-2 text-sm"
           >
             {t("room.action.cancel")}
