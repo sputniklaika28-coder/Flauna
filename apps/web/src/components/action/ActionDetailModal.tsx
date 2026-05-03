@@ -1,6 +1,7 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, useUIStore } from "../../stores";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 type MeleeStyle = "none" | "連撃" | "精密攻撃" | "強攻撃" | "全力攻撃";
 type MoveMode = "normal" | "attack_focus" | "tactical_maneuver";
@@ -29,7 +30,17 @@ export default function ActionDetailModal({ onSubmit }: Props) {
   const [moveMode, setMoveMode] = useState<MoveMode>("normal");
   const [diceCount, setDiceCount] = useState(1);
 
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const focusedOnceRef = useRef(false);
+  const submitRef = useCallback((node: HTMLButtonElement | null) => {
+    if (node && !focusedOnceRef.current) {
+      focusedOnceRef.current = true;
+      node.focus();
+    }
+  }, []);
+
   const isOpen = activeModal === "action_detail" && actionDetailTargetId !== null;
+  useFocusTrap(overlayRef, isOpen);
 
   const myChar = gameState?.characters.find((c) => c.player_id === myPlayerId);
   const target = gameState?.characters.find((c) => c.id === actionDetailTargetId);
@@ -54,12 +65,44 @@ export default function ActionDetailModal({ onSubmit }: Props) {
     closeModal();
   }, [actionDetailTargetId, weaponId, style, moveMode, diceCount, onSubmit, closeModal]);
 
-  if (!isOpen || !target || !myChar) return null;
+  if (!isOpen || !target || !myChar) {
+    focusedOnceRef.current = false;
+    return null;
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeModal();
+      return;
+    }
+    if (e.key !== "Enter" || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) {
+      return;
+    }
+    // Enter on form controls should not double-trigger submit.
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === "TEXTAREA" || tag === "SELECT" || tag === "INPUT") return;
+    e.preventDefault();
+    handleSubmit();
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="action-detail-title"
+      data-testid="action-detail-modal"
+      onKeyDown={handleKeyDown}
+    >
       <div className="bg-gray-900 border border-gray-600 rounded-lg p-6 w-96 text-white">
-        <h2 className="text-lg font-bold text-white mb-4">{t("room.action.title")}</h2>
+        <h2
+          id="action-detail-title"
+          className="text-lg font-bold text-white mb-4"
+        >
+          {t("room.action.title")}
+        </h2>
 
         {/* Weapon */}
         <div className="mb-3">
@@ -145,12 +188,15 @@ export default function ActionDetailModal({ onSubmit }: Props) {
         <div className="flex gap-2">
           <button
             onClick={closeModal}
+            data-testid="action-detail-cancel"
             className="flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded py-2 text-sm"
           >
             {t("room.action.cancel")}
           </button>
           <button
+            ref={submitRef}
             onClick={handleSubmit}
+            data-testid="action-detail-submit"
             className="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded py-2 text-sm font-semibold"
           >
             {t("room.action.submit")}
