@@ -3533,3 +3533,170 @@ describe("Phase 9 web: ToastContainer keyboard / a11y (§17)", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// SideMenu / Header mobile disclosure — §17 keyboard a11y
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: SideMenu mobile disclosure (§17)", () => {
+  function makeChar(id: string, playerId: string | null): Character {
+    return {
+      id,
+      name: id,
+      player_id: playerId,
+      faction: "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 0,
+      max_evasion_dice: 0,
+      position: [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  function makeState(): GameState {
+    return {
+      room_id: "r",
+      version: 1,
+      seed: 1,
+      phase: "combat" as GamePhase,
+      machine_state: "IDLE",
+      current_turn_index: 0,
+      round_number: 1,
+      map_size: [10, 10] as [number, number],
+      obstacles: [],
+      current_turn_summary: null,
+      pending_actions: [],
+      characters: [makeChar("c1", "p1")],
+      turn_order: ["c1"],
+    } as unknown as GameState;
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useUIStore.setState({ sideMenuOpen: false, chatPanelOpen: false });
+    useGameStore.setState({
+      gameState: makeState(),
+      myPlayerId: "p1",
+    } as never);
+  });
+
+  afterEach(() => {
+    useUIStore.setState({ sideMenuOpen: false, chatPanelOpen: false });
+    useGameStore.setState({ gameState: null, myPlayerId: null } as never);
+  });
+
+  function renderSideMenu() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(SideMenu),
+      ),
+    );
+  }
+
+  function renderHeader() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(Header),
+      ),
+    );
+  }
+
+  it("labels the <aside> as a complementary landmark with the §17 aria-label (ja)", () => {
+    renderSideMenu();
+    const aside = screen.getByTestId("sidemenu");
+    expect(aside.tagName.toLowerCase()).toBe("aside");
+    expect(aside.getAttribute("aria-label")).toBe(ja["room.sideMenu.label"]);
+    expect(aside.getAttribute("id")).toBe("sidemenu-panel");
+  });
+
+  it("uses the localized aside label in en", async () => {
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    renderSideMenu();
+    const aside = screen.getByTestId("sidemenu");
+    expect(aside.getAttribute("aria-label")).toBe(en["room.sideMenu.label"]);
+    cleanup();
+    await act(async () => {
+      await i18n.changeLanguage("ja");
+    });
+  });
+
+  it("wires the Header toggle to the panel via aria-controls + aria-expanded", () => {
+    renderHeader();
+    const toggle = screen.getByTestId("toggle-sidemenu");
+    expect(toggle.getAttribute("aria-controls")).toBe("sidemenu-panel");
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    act(() => {
+      useUIStore.getState().toggleSideMenu();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+  });
+
+  it("closes the side menu on Escape when it is open", () => {
+    act(() => {
+      useUIStore.setState({ sideMenuOpen: true });
+    });
+    renderSideMenu();
+    expect(useUIStore.getState().sideMenuOpen).toBe(true);
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+    });
+    expect(useUIStore.getState().sideMenuOpen).toBe(false);
+  });
+
+  it("does not toggle on Escape when the menu is already closed", () => {
+    act(() => {
+      useUIStore.setState({ sideMenuOpen: false });
+    });
+    renderSideMenu();
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+    });
+    expect(useUIStore.getState().sideMenuOpen).toBe(false);
+  });
+
+  it("ignores non-Escape keys", () => {
+    act(() => {
+      useUIStore.setState({ sideMenuOpen: true });
+    });
+    renderSideMenu();
+    act(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "a", bubbles: true }),
+      );
+    });
+    expect(useUIStore.getState().sideMenuOpen).toBe(true);
+  });
+
+  it("ja and en both expose the §17 sidemenu landmark label", () => {
+    expect(ja).toHaveProperty("room.sideMenu.label");
+    expect(en).toHaveProperty("room.sideMenu.label");
+  });
+});

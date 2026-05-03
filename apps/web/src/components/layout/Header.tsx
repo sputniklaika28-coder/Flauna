@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useGameStore, useUIStore } from "../../stores";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { AudioSettings, LanguageSwitcher } from "../common";
+import { SIDE_MENU_PANEL_ID } from "./SideMenu";
 
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: "bg-green-500",
@@ -16,6 +17,7 @@ export default function Header() {
   const { gameState, connectionStatus, myPlayerId } = useGameStore();
   const toggleSideMenu = useUIStore((s) => s.toggleSideMenu);
   const toggleChatPanel = useUIStore((s) => s.toggleChatPanel);
+  const sideMenuOpen = useUIStore((s) => s.sideMenuOpen);
   const online = useOnlineStatus();
 
   const phaseKey = gameState
@@ -36,6 +38,8 @@ export default function Header() {
             type="button"
             onClick={toggleSideMenu}
             aria-label={t("room.mobile.toggleSideMenu")}
+            aria-expanded={sideMenuOpen}
+            aria-controls={SIDE_MENU_PANEL_ID}
             data-testid="toggle-sidemenu"
             className="lg:hidden p-1 rounded hover:bg-gray-700"
           >

@@ -1,6 +1,12 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, useUIStore } from "../../stores";
 import type { Character, PressureLevel } from "../../types";
+
+// Spec §17 keeps the side panel as a labelled complementary landmark, with the
+// id/aria-controls handshake against the Header toggle so SR users learn the
+// disclosure relationship and can close from the keyboard with Escape.
+export const SIDE_MENU_PANEL_ID = "sidemenu-panel";
 
 const PRESSURE_BG: Record<PressureLevel, string> = {
   normal: "bg-gray-800 border-gray-700",
@@ -163,6 +169,18 @@ export default function SideMenu() {
   const sideMenuOpen = useUIStore((s) => s.sideMenuOpen);
   const closeMobilePanels = useUIStore((s) => s.closeMobilePanels);
 
+  useEffect(() => {
+    if (!sideMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        closeMobilePanels();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [sideMenuOpen, closeMobilePanels]);
+
   if (!gameState) return null;
 
   const { characters, turn_order, current_turn_index } = gameState;
@@ -186,6 +204,8 @@ export default function SideMenu() {
         />
       )}
       <aside
+        id={SIDE_MENU_PANEL_ID}
+        aria-label={t("room.sideMenu.label")}
         data-testid="sidemenu"
         className={`w-52 bg-gray-900 text-white p-2 overflow-y-auto flex-shrink-0
           lg:relative lg:translate-x-0 lg:block

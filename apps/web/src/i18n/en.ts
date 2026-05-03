@@ -180,6 +180,7 @@ const en = {
   "room.system.pendingRestoredEvasion": "Restoring the evasion prompt",
   "room.system.pendingRestoredDeathAvoidance": "Restoring the death-avoidance prompt",
   "room.quickAction.toolbar": "Quick actions",
+  "room.sideMenu.label": "Party",
   "room.sideMenu.status": "Status",
   "room.sideMenu.statusNone": "None",
   "room.sideMenu.statusDuration": "{{name}} ({{n}} turns left)",

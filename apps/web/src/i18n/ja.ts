@@ -180,6 +180,7 @@ const ja = {
   "room.system.pendingRestoredEvasion": "回避要求を再表示します",
   "room.system.pendingRestoredDeathAvoidance": "死亡回避要求を再表示します",
   "room.quickAction.toolbar": "クイックアクション",
+  "room.sideMenu.label": "味方PCと敵PC",
   "room.sideMenu.status": "状態",
   "room.sideMenu.statusNone": "なし",
   "room.sideMenu.statusDuration": "{{name}}（残り{{n}}ターン）",
