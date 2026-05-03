@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useGameStore, useUIStore } from "../../stores";
 
@@ -17,8 +17,10 @@ export default function ContextMenu({
   const { contextMenuCharId, contextMenuPos, closeContextMenu } = useUIStore();
   const { gameState } = useGameStore();
   const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
 
   useEffect(() => {
+    if (!contextMenuCharId) return;
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         closeContextMenu();
@@ -26,24 +28,98 @@ export default function ContextMenu({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [closeContextMenu]);
+  }, [closeContextMenu, contextMenuCharId]);
+
+  // §17 a11y: focus the first menuitem when the menu opens (roving tabindex).
+  useEffect(() => {
+    if (!contextMenuCharId) return;
+    const items = ref.current?.querySelectorAll<HTMLButtonElement>(
+      "[role='menuitem']",
+    );
+    items?.[0]?.focus();
+  }, [contextMenuCharId]);
 
   if (!contextMenuCharId || !contextMenuPos) return null;
 
   const char = gameState?.characters.find((c) => c.id === contextMenuCharId);
   if (!char) return null;
 
+  const focusItemAt = (index: number) => {
+    const items = ref.current?.querySelectorAll<HTMLButtonElement>(
+      "[role='menuitem']",
+    );
+    if (!items || items.length === 0) return;
+    const wrapped = ((index % items.length) + items.length) % items.length;
+    items[wrapped]?.focus();
+  };
+
+  const focusedIndex = (): number => {
+    const items = ref.current?.querySelectorAll<HTMLButtonElement>(
+      "[role='menuitem']",
+    );
+    if (!items) return -1;
+    const active = document.activeElement;
+    return Array.prototype.indexOf.call(items, active);
+  };
+
+  // §17 a11y: arrow-key roving + Esc to close + Tab closes per WAI-ARIA menu.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.stopPropagation();
+      closeContextMenu();
+      return;
+    }
+    if (e.key === "Tab") {
+      // Per WAI-ARIA menu pattern, Tab moves focus out of the menu and closes it.
+      closeContextMenu();
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const idx = focusedIndex();
+      focusItemAt(idx < 0 ? 0 : idx + 1);
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const idx = focusedIndex();
+      focusItemAt(idx < 0 ? -1 : idx - 1);
+      return;
+    }
+    if (e.key === "Home") {
+      e.preventDefault();
+      focusItemAt(0);
+      return;
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      focusItemAt(-1);
+    }
+  };
+
   return (
     <div
       ref={ref}
-      className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-lg text-white text-sm py-1 min-w-36"
+      role="menu"
+      aria-labelledby={titleId}
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+      data-testid="context-menu"
+      className="fixed z-50 bg-gray-800 border border-gray-600 rounded shadow-lg text-white text-sm py-1 min-w-36 outline-none"
       style={{ left: contextMenuPos.x, top: contextMenuPos.y }}
     >
-      <div className="px-3 py-1 text-gray-400 font-semibold text-xs border-b border-gray-700">
+      <div
+        id={titleId}
+        className="px-3 py-1 text-gray-400 font-semibold text-xs border-b border-gray-700"
+      >
         {char.name}
       </div>
       <button
-        className="w-full text-left px-3 py-1.5 hover:bg-gray-700"
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        className="w-full text-left px-3 py-1.5 hover:bg-gray-700 focus:bg-gray-700 focus:outline-none"
         onClick={() => {
           onAttack(contextMenuCharId);
           closeContextMenu();
@@ -52,7 +128,10 @@ export default function ContextMenu({
         {t("room.contextMenu.attack")}
       </button>
       <button
-        className="w-full text-left px-3 py-1.5 hover:bg-gray-700 text-yellow-300"
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        className="w-full text-left px-3 py-1.5 hover:bg-gray-700 focus:bg-gray-700 focus:outline-none text-yellow-300"
         onClick={() => {
           onDetailAttack(contextMenuCharId);
           closeContextMenu();
@@ -61,7 +140,10 @@ export default function ContextMenu({
         {t("room.contextMenu.detailAttack")} ⚙
       </button>
       <button
-        className="w-full text-left px-3 py-1.5 hover:bg-gray-700 text-purple-300"
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        className="w-full text-left px-3 py-1.5 hover:bg-gray-700 focus:bg-gray-700 focus:outline-none text-purple-300"
         onClick={() => {
           onCastArt(contextMenuCharId);
           closeContextMenu();
@@ -70,9 +152,12 @@ export default function ContextMenu({
       >
         {t("room.contextMenu.castArt")} ✦
       </button>
-      <div className="border-t border-gray-700 my-0.5" />
+      <div className="border-t border-gray-700 my-0.5" role="separator" />
       <button
-        className="w-full text-left px-3 py-1.5 hover:bg-gray-700"
+        type="button"
+        role="menuitem"
+        tabIndex={-1}
+        className="w-full text-left px-3 py-1.5 hover:bg-gray-700 focus:bg-gray-700 focus:outline-none"
         onClick={closeContextMenu}
       >
         {t("room.contextMenu.detail")}
