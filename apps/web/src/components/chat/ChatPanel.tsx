@@ -18,7 +18,10 @@ function EntryRow({ entry }: { entry: ChatEntry }) {
         : "text-blue-300";
 
   return (
-    <div className="mb-2 text-sm">
+    <div
+      className="mb-2 text-sm"
+      aria-busy={entry.isStreaming || undefined}
+    >
       <span className={`font-semibold ${color}`}>{prefix}: </span>
       <span className="text-gray-100">{entry.text}</span>
       {entry.isStreaming && (
@@ -119,6 +122,10 @@ export default function ChatPanel({ onSendStatement }: Props) {
         ref={scrollRef}
         onScroll={handleScroll}
         data-testid="chatpanel-scroll"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-label={t("room.chat.logLabel")}
         className="flex-1 overflow-y-auto p-3 space-y-1 relative"
       >
         {entries.map((e) => (
@@ -142,6 +149,8 @@ export default function ChatPanel({ onSendStatement }: Props) {
         <input
           className="flex-1 bg-gray-800 rounded px-2 py-1 text-sm text-white placeholder-gray-500 outline-none"
           placeholder={t("room.messagePlaceholder")}
+          aria-label={t("room.chat.inputLabel")}
+          data-testid="chatpanel-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
