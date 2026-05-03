@@ -51,6 +51,7 @@ import ContextMenu from "../../src/components/map/ContextMenu";
 import ActionDetailModal from "../../src/components/action/ActionDetailModal";
 import CastArtModal from "../../src/components/dialogs/CastArtModal";
 import CastArtCutscene from "../../src/components/dialogs/CastArtCutscene";
+import ToastContainer from "../../src/components/common/ToastContainer";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -3427,5 +3428,108 @@ describe("Phase 9 web: CastArtCutscene a11y (§17)", () => {
     // sr-only sentence is the single source of truth for screen readers.
     expect(decorative?.textContent).toContain("茜");
     expect(decorative?.textContent).toContain("霊弾発射");
+  });
+});
+
+describe("Phase 9 web: ToastContainer keyboard / a11y (§17)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useToastStore.setState({ toasts: [] });
+  });
+
+  afterEach(() => {
+    useToastStore.setState({ toasts: [] });
+    vi.useRealTimers();
+  });
+
+  function renderToasts() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(ToastContainer),
+      ),
+    );
+  }
+
+  it("declares region role with the §17 aria-label (ja)", () => {
+    act(() => {
+      useToastStore.getState().pushToast({ message: "x", severity: "info" });
+    });
+    renderToasts();
+    const region = screen.getByTestId("toast-container");
+    expect(region.getAttribute("role")).toBe("region");
+    expect(region.getAttribute("aria-label")).toBe(
+      ja["room.notice.regionLabel"],
+    );
+  });
+
+  it("uses the localized region label in en", async () => {
+    vi.useRealTimers();
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    vi.useFakeTimers();
+    act(() => {
+      useToastStore.getState().pushToast({ message: "x", severity: "info" });
+    });
+    renderToasts();
+    const region = screen.getByTestId("toast-container");
+    expect(region.getAttribute("aria-label")).toBe(
+      en["room.notice.regionLabel"],
+    );
+    cleanup();
+    vi.useRealTimers();
+    await act(async () => {
+      await i18n.changeLanguage("ja");
+    });
+  });
+
+  it("interrupts with role=alert on error toasts and stays polite via role=status on info/warn", () => {
+    act(() => {
+      useToastStore.getState().pushToast({ message: "i", severity: "info" });
+      useToastStore.getState().pushToast({ message: "w", severity: "warn" });
+      useToastStore.getState().pushToast({ message: "e", severity: "error" });
+    });
+    renderToasts();
+    expect(screen.getByTestId("toast-info").getAttribute("role")).toBe(
+      "status",
+    );
+    expect(screen.getByTestId("toast-warn").getAttribute("role")).toBe(
+      "status",
+    );
+    expect(screen.getByTestId("toast-error").getAttribute("role")).toBe(
+      "alert",
+    );
+  });
+
+  it("labels the dismiss button via i18n (ja and en)", async () => {
+    act(() => {
+      useToastStore.getState().pushToast({ message: "x", severity: "info" });
+    });
+    renderToasts();
+    expect(
+      screen.getByLabelText(ja["room.notice.dismiss"]),
+    ).toBeTruthy();
+    cleanup();
+
+    vi.useRealTimers();
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    vi.useFakeTimers();
+    useToastStore.setState({ toasts: [] });
+    act(() => {
+      useToastStore.getState().pushToast({ message: "x", severity: "info" });
+    });
+    renderToasts();
+    expect(
+      screen.getByLabelText(en["room.notice.dismiss"]),
+    ).toBeTruthy();
+    cleanup();
+    vi.useRealTimers();
+    await act(async () => {
+      await i18n.changeLanguage("ja");
+    });
   });
 });

@@ -88,7 +88,7 @@ describe("Phase 9 web: ToastContainer", () => {
   it("dismisses on close-button click", async () => {
     useToastStore.getState().pushToast({ message: "bye", severity: "info" });
     render(React.createElement(ToastContainer));
-    const btn = screen.getByLabelText("dismiss");
+    const btn = screen.getByLabelText(ja["room.notice.dismiss"]);
     await act(async () => {
       fireEvent.click(btn);
     });

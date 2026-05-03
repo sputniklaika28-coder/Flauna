@@ -160,6 +160,8 @@ const en = {
   "room.notice.backOnline": "Network restored. Reconnecting…",
   "room.notice.reconnecting": "Disconnected from the server. Reconnecting…",
   "room.notice.reconnected": "Reconnected to the server",
+  "room.notice.regionLabel": "Notifications",
+  "room.notice.dismiss": "Dismiss notification",
   "room.submitting": "Submitting…",
   "room.chat.jumpToLatest": "{{n}} new ↓",
   "room.chat.logLabel": "Chat log",
