@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useGameStore, useUIStore } from "../../stores";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { AudioSettings, LanguageSwitcher } from "../common";
+import { CHAT_PANEL_ID } from "../chat";
 import { SIDE_MENU_PANEL_ID } from "./SideMenu";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -18,6 +19,7 @@ export default function Header() {
   const toggleSideMenu = useUIStore((s) => s.toggleSideMenu);
   const toggleChatPanel = useUIStore((s) => s.toggleChatPanel);
   const sideMenuOpen = useUIStore((s) => s.sideMenuOpen);
+  const chatPanelOpen = useUIStore((s) => s.chatPanelOpen);
   const online = useOnlineStatus();
 
   const phaseKey = gameState
@@ -106,6 +108,8 @@ export default function Header() {
             type="button"
             onClick={toggleChatPanel}
             aria-label={t("room.mobile.toggleChatPanel")}
+            aria-expanded={chatPanelOpen}
+            aria-controls={CHAT_PANEL_ID}
             data-testid="toggle-chatpanel"
             className="lg:hidden p-1 rounded hover:bg-gray-700"
           >
