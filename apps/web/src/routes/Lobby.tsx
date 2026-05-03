@@ -24,10 +24,12 @@ export default function Lobby() {
     navigate(`/room/${res.room_id}`);
   };
 
-  const handleJoin = () => {
-    if (!joinRoomId) return;
+  const handleJoin = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const trimmed = joinRoomId.trim();
+    if (!trimmed) return;
     savePlayerName(playerName);
-    navigate(`/room/${joinRoomId}`);
+    navigate(`/room/${trimmed}`);
   };
 
   return (
@@ -65,23 +67,29 @@ export default function Lobby() {
         </button>
       </form>
 
-      <div className="flex flex-col gap-2 w-full max-w-sm">
+      <form
+        onSubmit={handleJoin}
+        className="flex flex-col gap-2 w-full max-w-sm"
+        aria-label={t("lobby.joinRoom")}
+      >
         <label className="flex flex-col gap-1">
           <span>{t("lobby.roomId")}</span>
           <input
+            data-testid="lobby-room-id"
             className="border rounded px-2 py-1"
             value={joinRoomId}
             onChange={(e) => setJoinRoomId(e.target.value)}
           />
         </label>
         <button
-          type="button"
-          className="bg-green-600 text-white rounded px-4 py-2"
-          onClick={handleJoin}
+          type="submit"
+          data-testid="lobby-join-button"
+          disabled={!joinRoomId.trim()}
+          className="bg-green-600 text-white rounded px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {t("lobby.joinRoom")}
         </button>
-      </div>
+      </form>
     </main>
   );
 }
