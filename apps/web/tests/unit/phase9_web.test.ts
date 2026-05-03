@@ -3839,3 +3839,141 @@ describe("Phase 9 web: ChatPanel mobile disclosure (§17)", () => {
     expect(en).toHaveProperty("room.chat.panelLabel");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Header connection status — §17 keyboard a11y (named live region)
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: Header connection status (§17)", () => {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    window.navigator,
+    "onLine",
+  );
+
+  function setNavigatorOnLine(value: boolean) {
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      get: () => value,
+    });
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    setNavigatorOnLine(true);
+    useGameStore.setState({
+      gameState: null,
+      connectionStatus: "CONNECTING",
+      myPlayerId: null,
+      authToken: null,
+      lastSeenEventId: 0,
+    } as Partial<ReturnType<typeof useGameStore.getState>> as never);
+  });
+
+  afterEach(() => {
+    if (originalDescriptor) {
+      Object.defineProperty(window.navigator, "onLine", originalDescriptor);
+    } else {
+      setNavigatorOnLine(true);
+    }
+    useGameStore.setState({
+      gameState: null,
+      connectionStatus: "CONNECTING",
+      myPlayerId: null,
+      authToken: null,
+      lastSeenEventId: 0,
+    } as Partial<ReturnType<typeof useGameStore.getState>> as never);
+  });
+
+  function renderHeader() {
+    return render(
+      React.createElement(
+        MemoryRouter,
+        null,
+        React.createElement(
+          I18nextProvider,
+          { i18n },
+          React.createElement(Header),
+        ),
+      ),
+    );
+  }
+
+  it("exposes the connection indicator as a polite, atomic, named status region (ja)", () => {
+    useGameStore.setState({ connectionStatus: "ACTIVE" });
+    renderHeader();
+    const region = screen.getByTestId("connection-status");
+    expect(region.getAttribute("role")).toBe("status");
+    expect(region.getAttribute("aria-live")).toBe("polite");
+    expect(region.getAttribute("aria-atomic")).toBe("true");
+    expect(region.getAttribute("aria-label")).toBe(
+      ja["room.connection.label"],
+    );
+  });
+
+  it("uses the localized status label in en", async () => {
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    useGameStore.setState({ connectionStatus: "ACTIVE" });
+    renderHeader();
+    expect(
+      screen.getByTestId("connection-status").getAttribute("aria-label"),
+    ).toBe(en["room.connection.label"]);
+    cleanup();
+    await act(async () => {
+      await i18n.changeLanguage("ja");
+    });
+  });
+
+  it("hides the decorative dot from screen readers", () => {
+    useGameStore.setState({ connectionStatus: "ACTIVE" });
+    renderHeader();
+    const dot = screen.getByTestId("connection-dot");
+    expect(dot.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("contains the connection-label inside the status region", () => {
+    useGameStore.setState({ connectionStatus: "ACTIVE" });
+    renderHeader();
+    const region = screen.getByTestId("connection-status");
+    const label = screen.getByTestId("connection-label");
+    expect(region.contains(label)).toBe(true);
+  });
+
+  it("updates the live region text when the connection state changes", () => {
+    useGameStore.setState({ connectionStatus: "CONNECTING" });
+    renderHeader();
+    expect(screen.getByTestId("connection-label").textContent).toBe(
+      ja["room.connecting"],
+    );
+    act(() => {
+      useGameStore.setState({ connectionStatus: "ACTIVE" });
+    });
+    expect(screen.getByTestId("connection-label").textContent).toBe(
+      ja["room.connected"],
+    );
+  });
+
+  it("reflects offline transitions inside the same status region", () => {
+    setNavigatorOnLine(true);
+    useGameStore.setState({ connectionStatus: "ACTIVE" });
+    renderHeader();
+    expect(screen.getByTestId("connection-label").textContent).toBe(
+      ja["room.connected"],
+    );
+    act(() => {
+      setNavigatorOnLine(false);
+      window.dispatchEvent(new Event("offline"));
+    });
+    const region = screen.getByTestId("connection-status");
+    expect(region.contains(screen.getByTestId("connection-label"))).toBe(true);
+    expect(screen.getByTestId("connection-label").textContent).toBe(
+      ja["room.offline"],
+    );
+  });
+
+  it("ja and en both expose the §17 connection status label", () => {
+    expect(ja).toHaveProperty("room.connection.label");
+    expect(en).toHaveProperty("room.connection.label");
+  });
+});

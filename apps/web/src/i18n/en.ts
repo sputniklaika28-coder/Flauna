@@ -156,6 +156,7 @@ const en = {
   "room.notice.versionMismatchRetry": "State updated. Resending with the latest version",
   "room.notice.versionMismatchGiveUp": "State updated. Please rebuild the action",
   "room.offline": "Offline",
+  "room.connection.label": "Connection status",
   "room.notice.offline": "Network connection lost. Will reconnect automatically once it returns",
   "room.notice.backOnline": "Network restored. Reconnecting…",
   "room.notice.reconnecting": "Disconnected from the server. Reconnecting…",
