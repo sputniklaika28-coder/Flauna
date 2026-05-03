@@ -50,6 +50,7 @@ import SideMenu from "../../src/components/layout/SideMenu";
 import ContextMenu from "../../src/components/map/ContextMenu";
 import ActionDetailModal from "../../src/components/action/ActionDetailModal";
 import CastArtModal from "../../src/components/dialogs/CastArtModal";
+import CastArtCutscene from "../../src/components/dialogs/CastArtCutscene";
 
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
@@ -3167,5 +3168,98 @@ describe("Phase 9 web: CastArtModal keyboard + a11y (§17)", () => {
     fireEvent.click(cancel);
     expect(onSubmit).not.toHaveBeenCalled();
     expect(useUIStore.getState().activeModal).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CastArtCutscene a11y (§17) — silent overlay must speak to screen readers
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: CastArtCutscene a11y (§17)", () => {
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    await i18n.changeLanguage("ja");
+    useUIStore.setState({ castArtCutscene: null } as never);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    useUIStore.setState({ castArtCutscene: null } as never);
+  });
+
+  function renderCutscene() {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(CastArtCutscene),
+      ),
+    );
+  }
+
+  it("ja and en expose the cutscene announcement key", () => {
+    expect(ja).toHaveProperty("room.castArt.cutsceneAnnounce");
+    expect(en).toHaveProperty("room.castArt.cutsceneAnnounce");
+  });
+
+  it("declares role=status with aria-live=polite and aria-atomic=true", () => {
+    renderCutscene();
+    act(() => {
+      useUIStore.getState().triggerCastArtCutscene({
+        id: "c1",
+        artName: "霊弾発射",
+        casterName: "茜",
+      });
+    });
+    const overlay = screen.getByTestId("cast-art-cutscene");
+    expect(overlay.getAttribute("role")).toBe("status");
+    expect(overlay.getAttribute("aria-live")).toBe("polite");
+    expect(overlay.getAttribute("aria-atomic")).toBe("true");
+  });
+
+  it("announces caster + art via an sr-only sentence (ja)", () => {
+    renderCutscene();
+    act(() => {
+      useUIStore.getState().triggerCastArtCutscene({
+        id: "c1",
+        artName: "霊弾発射",
+        casterName: "茜",
+      });
+    });
+    const announce = screen.getByTestId("cast-art-cutscene-announce");
+    expect(announce.textContent).toBe("茜が『霊弾発射』を発動！");
+  });
+
+  it("announces caster + art via an sr-only sentence (en)", async () => {
+    await i18n.changeLanguage("en");
+    renderCutscene();
+    act(() => {
+      useUIStore.getState().triggerCastArtCutscene({
+        id: "c2",
+        artName: "Spirit Bullet",
+        casterName: "Akane",
+      });
+    });
+    const announce = screen.getByTestId("cast-art-cutscene-announce");
+    expect(announce.textContent).toBe("Akane casts “Spirit Bullet”!");
+    await i18n.changeLanguage("ja");
+  });
+
+  it("hides the decorative visual layer from assistive tech", () => {
+    renderCutscene();
+    act(() => {
+      useUIStore.getState().triggerCastArtCutscene({
+        id: "c3",
+        artName: "霊弾発射",
+        casterName: "茜",
+      });
+    });
+    const overlay = screen.getByTestId("cast-art-cutscene");
+    const decorative = overlay.querySelector('[aria-hidden="true"]');
+    expect(decorative).toBeTruthy();
+    // Visible caster/art labels live inside the aria-hidden subtree so the
+    // sr-only sentence is the single source of truth for screen readers.
+    expect(decorative?.textContent).toContain("茜");
+    expect(decorative?.textContent).toContain("霊弾発射");
   });
 });
