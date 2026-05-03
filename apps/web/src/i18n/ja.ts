@@ -160,6 +160,8 @@ const ja = {
   "room.notice.backOnline": "ネットワークが復旧しました。再接続します",
   "room.notice.reconnecting": "サーバーから切断されました。再接続中…",
   "room.notice.reconnected": "サーバーに再接続しました",
+  "room.notice.regionLabel": "通知",
+  "room.notice.dismiss": "通知を閉じる",
   "room.submitting": "送信中…",
   "room.chat.jumpToLatest": "新着 {{n}} 件 ↓",
   "room.chat.logLabel": "チャットログ",
