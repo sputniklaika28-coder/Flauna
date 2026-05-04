@@ -117,6 +117,8 @@ const ja = {
   "room.map.selectChar": "{{name}}を選択",
   "room.map.deselectChar": "{{name}}の選択を解除",
   "room.map.openCharActions": "{{name}}の操作メニューを開く",
+  "room.map.damageRegion": "ダメージログ",
+  "room.map.damageItem": "{{name}}に{{amount}}ダメージ",
   "combat.victory": "勝利！",
   "combat.defeat": "敗北…",
   "combat.victoryMsg": "全ての敵を倒した。任務完了だ。",
