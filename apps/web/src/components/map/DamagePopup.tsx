@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Text } from "react-konva";
 import type Konva from "konva";
-import { useUIStore } from "../../stores";
+import { useGameStore, useUIStore } from "../../stores";
 import type { DamageEvent } from "../../stores/uiStore";
 
 const DURATION_MS = 900;
@@ -68,5 +69,39 @@ export default function DamagePopups({ cellSize }: Props) {
         <SinglePopup key={ev.id} event={ev} cellSize={cellSize} />
       ))}
     </>
+  );
+}
+
+/**
+ * §17 a11y: parallel DOM live region so screen-reader users hear damage that
+ * is otherwise rendered only inside the Konva stage. Mounted by GameMap
+ * outside the aria-hidden Stage.
+ */
+export function DamageAnnouncements() {
+  const { t } = useTranslation();
+  const damageEvents = useUIStore((s) => s.damageEvents);
+  const characters = useGameStore((s) => s.gameState?.characters ?? null);
+  return (
+    <ul
+      role="log"
+      aria-live="polite"
+      aria-relevant="additions"
+      aria-label={t("room.map.damageRegion")}
+      className="sr-only"
+      data-testid="game-map-damage-log"
+    >
+      {damageEvents.map((ev) => {
+        const name =
+          characters?.find((c) => c.id === ev.charId)?.name ?? ev.charId;
+        return (
+          <li
+            key={ev.id}
+            data-testid={`game-map-damage-${ev.id}`}
+          >
+            {t("room.map.damageItem", { name, amount: ev.amount })}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

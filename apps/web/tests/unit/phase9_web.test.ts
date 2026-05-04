@@ -4089,6 +4089,7 @@ describe("Phase 9 web: GameMap a11y region (§17)", () => {
       selectedCharId: null,
       contextMenuCharId: null,
       contextMenuPos: null,
+      damageEvents: [],
     } as Partial<ReturnType<typeof useUIStore.getState>> as never);
   });
 
@@ -4289,5 +4290,110 @@ describe("Phase 9 web: GameMap a11y region (§17)", () => {
     const stageMock = document.querySelector('[data-konva-mock="Stage"]');
     expect(stageMock).not.toBeNull();
     expect(stageMock?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("ja and en both expose the §17 damage announcement keys", () => {
+    expect(ja).toHaveProperty("room.map.damageRegion");
+    expect(ja).toHaveProperty("room.map.damageItem");
+    expect(en).toHaveProperty("room.map.damageRegion");
+    expect(en).toHaveProperty("room.map.damageItem");
+  });
+
+  it("renders a polite log live region for damage events outside the Stage", () => {
+    const me = makeChar({ id: "c1", name: "燈子" });
+    const enemy = makeChar({ id: "e1", name: "鬼", faction: "enemy" });
+    useGameStore.setState({
+      gameState: makeState({
+        characters: [me, enemy],
+        turn_order: ["c1", "e1"],
+      }),
+    });
+    useUIStore.setState({
+      damageEvents: [
+        { id: "d1", charId: "e1", amount: 5, gridX: 5, gridY: 6 },
+        { id: "d2", charId: "c1", amount: 3, gridX: 0, gridY: 0 },
+      ],
+    } as Partial<ReturnType<typeof useUIStore.getState>> as never);
+    renderMap();
+    const log = screen.getByTestId("game-map-damage-log");
+    expect(log.tagName).toBe("UL");
+    expect(log.getAttribute("role")).toBe("log");
+    expect(log.getAttribute("aria-live")).toBe("polite");
+    expect(log.getAttribute("aria-relevant")).toBe("additions");
+    expect(log.getAttribute("aria-label")).toBe(ja["room.map.damageRegion"]);
+    // Log should not be inside the aria-hidden Stage.
+    const stageMock = document.querySelector('[data-konva-mock="Stage"]');
+    expect(stageMock?.contains(log)).toBe(false);
+    const item1 = screen.getByTestId("game-map-damage-d1");
+    expect(item1.textContent).toBe(
+      ja["room.map.damageItem"]
+        .replace("{{name}}", "鬼")
+        .replace("{{amount}}", "5"),
+    );
+    const item2 = screen.getByTestId("game-map-damage-d2");
+    expect(item2.textContent).toBe(
+      ja["room.map.damageItem"]
+        .replace("{{name}}", "燈子")
+        .replace("{{amount}}", "3"),
+    );
+  });
+
+  it("falls back to charId when the character is unknown to the game state", () => {
+    const me = makeChar({ id: "c1", name: "燈子" });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+    });
+    useUIStore.setState({
+      damageEvents: [
+        { id: "d1", charId: "ghost", amount: 7, gridX: 1, gridY: 1 },
+      ],
+    } as Partial<ReturnType<typeof useUIStore.getState>> as never);
+    renderMap();
+    expect(screen.getByTestId("game-map-damage-d1").textContent).toBe(
+      ja["room.map.damageItem"]
+        .replace("{{name}}", "ghost")
+        .replace("{{amount}}", "7"),
+    );
+  });
+
+  it("renders an empty damage log when there are no damage events", () => {
+    const me = makeChar({ id: "c1", name: "燈子" });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+    });
+    useUIStore.setState({
+      damageEvents: [],
+    } as Partial<ReturnType<typeof useUIStore.getState>> as never);
+    renderMap();
+    const log = screen.getByTestId("game-map-damage-log");
+    expect(log.children.length).toBe(0);
+  });
+
+  it("uses the localized en damage strings when language switches", async () => {
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    const enemy = makeChar({ id: "e1", name: "Oni", faction: "enemy" });
+    useGameStore.setState({
+      gameState: makeState({ characters: [enemy], turn_order: ["e1"] }),
+    });
+    useUIStore.setState({
+      damageEvents: [
+        { id: "d1", charId: "e1", amount: 4, gridX: 0, gridY: 0 },
+      ],
+    } as Partial<ReturnType<typeof useUIStore.getState>> as never);
+    renderMap();
+    expect(
+      screen.getByTestId("game-map-damage-log").getAttribute("aria-label"),
+    ).toBe(en["room.map.damageRegion"]);
+    expect(screen.getByTestId("game-map-damage-d1").textContent).toBe(
+      en["room.map.damageItem"]
+        .replace("{{name}}", "Oni")
+        .replace("{{amount}}", "4"),
+    );
+    cleanup();
+    await act(async () => {
+      await i18n.changeLanguage("ja");
+    });
   });
 });

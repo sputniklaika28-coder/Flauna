@@ -117,6 +117,8 @@ const en = {
   "room.map.selectChar": "Select {{name}}",
   "room.map.deselectChar": "Deselect {{name}}",
   "room.map.openCharActions": "Open action menu for {{name}}",
+  "room.map.damageRegion": "Damage log",
+  "room.map.damageItem": "{{name}} took {{amount}} damage",
   "combat.victory": "Victory!",
   "combat.defeat": "Defeat...",
   "combat.victoryMsg": "All enemies defeated. Mission complete.",

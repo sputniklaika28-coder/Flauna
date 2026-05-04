@@ -8,7 +8,7 @@ import type {
   Pillar,
   Wire,
 } from "../../types";
-import DamagePopups from "./DamagePopup";
+import DamagePopups, { DamageAnnouncements } from "./DamagePopup";
 
 const FACTION_COLORS: Record<string, string> = {
   pc: "#3b82f6",
@@ -377,6 +377,7 @@ export default function GameMap({ onCharRightClick }: Props) {
           );
         })}
       </ul>
+      <DamageAnnouncements />
       <Stage width={width} height={height} aria-hidden="true">
         <Layer>
           {/* background */}
