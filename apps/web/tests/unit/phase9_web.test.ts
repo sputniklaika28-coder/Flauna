@@ -53,6 +53,45 @@ import CastArtModal from "../../src/components/dialogs/CastArtModal";
 import CastArtCutscene from "../../src/components/dialogs/CastArtCutscene";
 import ToastContainer from "../../src/components/common/ToastContainer";
 
+// react-konva relies on the canvas API which jsdom does not implement.
+// Mock it with light DOM shims so GameMap can render the §17 a11y surface.
+vi.mock("react-konva", () => {
+  const passthrough = (tag: string) => {
+    return ({
+      children,
+      ...rest
+    }: {
+      children?: React.ReactNode;
+      [key: string]: unknown;
+    }) => {
+      const safeProps: Record<string, unknown> = {
+        "data-konva-mock": tag,
+      };
+      Object.keys(rest).forEach((key) => {
+        if (
+          key.startsWith("aria-") ||
+          key.startsWith("data-") ||
+          key === "role"
+        ) {
+          safeProps[key] = rest[key];
+        }
+      });
+      return React.createElement("div", safeProps, children);
+    };
+  };
+  return {
+    Stage: passthrough("Stage"),
+    Layer: passthrough("Layer"),
+    Rect: passthrough("Rect"),
+    Line: passthrough("Line"),
+    Circle: passthrough("Circle"),
+    Text: passthrough("Text"),
+    Group: passthrough("Group"),
+  };
+});
+
+import GameMap from "../../src/components/map/GameMap";
+
 beforeAll(async () => {
   await i18n.changeLanguage("ja");
 });
@@ -3975,5 +4014,280 @@ describe("Phase 9 web: Header connection status (§17)", () => {
   it("ja and en both expose the §17 connection status label", () => {
     expect(ja).toHaveProperty("room.connection.label");
     expect(en).toHaveProperty("room.connection.label");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GameMap a11y region — §17 keyboard/screen-reader access to the canvas map
+// ---------------------------------------------------------------------------
+
+describe("Phase 9 web: GameMap a11y region (§17)", () => {
+  function makeChar(
+    over: Partial<Character> & Pick<Character, "id">,
+  ): Character {
+    return {
+      id: over.id,
+      name: over.name ?? over.id,
+      player_id: over.player_id ?? null,
+      faction: over.faction ?? "pc",
+      is_boss: false,
+      tai: 0,
+      rei: 0,
+      kou: 0,
+      jutsu: 0,
+      max_hp: 10,
+      max_mp: 10,
+      hp: over.hp ?? 10,
+      mp: 10,
+      mobility: 3,
+      evasion_dice: 2,
+      max_evasion_dice: 2,
+      position: over.position ?? [0, 0],
+      equipped_weapons: [],
+      equipped_jacket: null,
+      armor_value: 0,
+      inventory: {},
+      skills: [],
+      arts: [],
+      status_effects: [],
+      has_acted_this_turn: false,
+      movement_used_this_turn: 0,
+      first_move_mode: null,
+    };
+  }
+
+  function makeState(
+    over: Partial<GameState> & Pick<GameState, "characters" | "turn_order">,
+  ): GameState {
+    return {
+      room_id: "r",
+      version: 1,
+      seed: 1,
+      phase: "combat",
+      machine_state: over.machine_state ?? "IDLE",
+      turn_order: over.turn_order,
+      current_turn_index: over.current_turn_index ?? 0,
+      round_number: 1,
+      characters: over.characters,
+      map_size: over.map_size ?? [10, 10],
+      obstacles: over.obstacles ?? [],
+      current_turn_summary: null,
+      pending_actions: [],
+    };
+  }
+
+  beforeEach(async () => {
+    await i18n.changeLanguage("ja");
+    useGameStore.setState({
+      gameState: null,
+      connectionStatus: "ACTIVE",
+      myPlayerId: "p1",
+      authToken: "t",
+      lastSeenEventId: 0,
+    } as Partial<ReturnType<typeof useGameStore.getState>> as never);
+    useUIStore.setState({
+      selectedCharId: null,
+      contextMenuCharId: null,
+      contextMenuPos: null,
+    } as Partial<ReturnType<typeof useUIStore.getState>> as never);
+  });
+
+  function renderMap(onRightClick: (id: string, p: { x: number; y: number }) => void = () => {}) {
+    return render(
+      React.createElement(
+        I18nextProvider,
+        { i18n },
+        React.createElement(GameMap, { onCharRightClick: onRightClick }),
+      ),
+    );
+  }
+
+  it("ja and en both expose the §17 GameMap a11y keys", () => {
+    expect(ja).toHaveProperty("room.map.region");
+    expect(ja).toHaveProperty("room.map.charList");
+    expect(ja).toHaveProperty("room.map.currentActor");
+    expect(ja).toHaveProperty("room.map.charSummary");
+    expect(en).toHaveProperty("room.map.region");
+    expect(en).toHaveProperty("room.map.charList");
+    expect(en).toHaveProperty("room.map.currentActor");
+    expect(en).toHaveProperty("room.map.charSummary");
+  });
+
+  it("renders the empty-state region with the localized label and aria-label", () => {
+    renderMap();
+    const empty = screen.getByTestId("game-map-empty");
+    expect(empty.getAttribute("role")).toBe("region");
+    expect(empty.getAttribute("aria-label")).toBe(ja["room.map.region"]);
+    expect(empty.textContent).toBe(ja["room.map.empty"]);
+  });
+
+  it("exposes the map as a named region with a polite atomic status of the current actor", () => {
+    const me = makeChar({ id: "c1", name: "燈子", player_id: "p1" });
+    const enemy = makeChar({ id: "e1", name: "鬼", faction: "enemy" });
+    useGameStore.setState({
+      gameState: makeState({
+        characters: [me, enemy],
+        turn_order: ["c1", "e1"],
+        current_turn_index: 0,
+      }),
+    });
+    renderMap();
+    const region = screen.getByTestId("game-map");
+    expect(region.getAttribute("role")).toBe("region");
+    expect(region.getAttribute("aria-label")).toBe(ja["room.map.region"]);
+    const status = screen.getByTestId("game-map-current-actor");
+    expect(status.getAttribute("role")).toBe("status");
+    expect(status.getAttribute("aria-live")).toBe("polite");
+    expect(status.getAttribute("aria-atomic")).toBe("true");
+    expect(status.textContent).toBe(
+      ja["room.map.currentActor"].replace("{{name}}", "燈子"),
+    );
+  });
+
+  it("falls back to the no-current-actor message when turn order is empty", () => {
+    const me = makeChar({ id: "c1", name: "燈子", player_id: "p1" });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: [] }),
+    });
+    renderMap();
+    expect(screen.getByTestId("game-map-current-actor").textContent).toBe(
+      ja["room.map.noCurrentActor"],
+    );
+  });
+
+  it("renders one keyboard-reachable list item per character with a localized summary", () => {
+    const me = makeChar({
+      id: "c1",
+      name: "燈子",
+      player_id: "p1",
+      position: [3, 4],
+      hp: 7,
+    });
+    const enemy = makeChar({
+      id: "e1",
+      name: "鬼",
+      faction: "enemy",
+      position: [5, 6],
+    });
+    useGameStore.setState({
+      gameState: makeState({
+        characters: [me, enemy],
+        turn_order: ["e1", "c1"],
+        current_turn_index: 0,
+      }),
+    });
+    renderMap();
+    const list = screen.getByTestId("game-map-char-list");
+    expect(list.getAttribute("role")).toBe("list");
+    expect(list.getAttribute("aria-label")).toBe(ja["room.map.charList"]);
+    const meItem = screen.getByTestId("game-map-char-c1");
+    const meSelect = screen.getByTestId("game-map-select-c1");
+    expect(meSelect.tagName).toBe("BUTTON");
+    expect(meSelect.getAttribute("aria-pressed")).toBe("false");
+    expect(meSelect.textContent).toContain("燈子");
+    expect(meSelect.textContent).toContain("HP 7/10");
+    expect(meSelect.textContent).toContain("(3, 4)");
+    expect(meSelect.textContent).toContain(ja["room.map.faction.pc"]);
+    expect(meItem.getAttribute("aria-current")).toBeNull();
+    const enemyItem = screen.getByTestId("game-map-char-e1");
+    expect(enemyItem.getAttribute("aria-current")).toBe("true");
+    expect(
+      screen.getByTestId("game-map-select-e1").textContent,
+    ).toContain(ja["room.map.charCurrent"]);
+    expect(
+      screen.getByTestId("game-map-select-e1").textContent,
+    ).toContain(ja["room.map.faction.enemy"]);
+  });
+
+  it("annotates downed characters as 戦闘不能 inside the summary", () => {
+    const downed = makeChar({ id: "c1", name: "燈子", hp: 0 });
+    useGameStore.setState({
+      gameState: makeState({ characters: [downed], turn_order: ["c1"] }),
+    });
+    renderMap();
+    expect(screen.getByTestId("game-map-select-c1").textContent).toContain(
+      ja["room.map.charDown"],
+    );
+  });
+
+  it("toggles selection via the keyboard-reachable select button", () => {
+    const me = makeChar({ id: "c1", name: "燈子", player_id: "p1" });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+    });
+    renderMap();
+    const btn = screen.getByTestId("game-map-select-c1");
+    expect(btn.getAttribute("aria-pressed")).toBe("false");
+    expect(btn.getAttribute("aria-label")).toBe(
+      ja["room.map.selectChar"].replace("{{name}}", "燈子"),
+    );
+    fireEvent.click(btn);
+    expect(useUIStore.getState().selectedCharId).toBe("c1");
+    expect(
+      screen.getByTestId("game-map-select-c1").getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      screen.getByTestId("game-map-select-c1").getAttribute("aria-label"),
+    ).toBe(ja["room.map.deselectChar"].replace("{{name}}", "燈子"));
+    fireEvent.click(screen.getByTestId("game-map-select-c1"));
+    expect(useUIStore.getState().selectedCharId).toBeNull();
+  });
+
+  it("opens the context menu via the actions button using the button's bounding rect", () => {
+    const me = makeChar({ id: "c1", name: "燈子", player_id: "p1" });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+    });
+    const onRightClick = vi.fn();
+    renderMap(onRightClick);
+    const actionsBtn = screen.getByTestId("game-map-actions-c1");
+    expect(actionsBtn.getAttribute("aria-haspopup")).toBe("menu");
+    expect(actionsBtn.getAttribute("aria-label")).toBe(
+      ja["room.map.openCharActions"].replace("{{name}}", "燈子"),
+    );
+    fireEvent.click(actionsBtn);
+    expect(onRightClick).toHaveBeenCalledTimes(1);
+    expect(onRightClick.mock.calls[0][0]).toBe("c1");
+    const pos = onRightClick.mock.calls[0][1];
+    expect(typeof pos.x).toBe("number");
+    expect(typeof pos.y).toBe("number");
+  });
+
+  it("uses the localized strings in en (charList + currentActor)", async () => {
+    await act(async () => {
+      await i18n.changeLanguage("en");
+    });
+    const me = makeChar({ id: "c1", name: "Ako", player_id: "p1" });
+    useGameStore.setState({
+      gameState: makeState({
+        characters: [me],
+        turn_order: ["c1"],
+      }),
+    });
+    renderMap();
+    expect(screen.getByTestId("game-map").getAttribute("aria-label")).toBe(
+      en["room.map.region"],
+    );
+    expect(screen.getByTestId("game-map-char-list").getAttribute("aria-label")).toBe(
+      en["room.map.charList"],
+    );
+    expect(screen.getByTestId("game-map-current-actor").textContent).toBe(
+      en["room.map.currentActor"].replace("{{name}}", "Ako"),
+    );
+    cleanup();
+    await act(async () => {
+      await i18n.changeLanguage("ja");
+    });
+  });
+
+  it("hides the canvas Stage from screen readers via aria-hidden", () => {
+    const me = makeChar({ id: "c1", name: "燈子" });
+    useGameStore.setState({
+      gameState: makeState({ characters: [me], turn_order: ["c1"] }),
+    });
+    renderMap();
+    const stageMock = document.querySelector('[data-konva-mock="Stage"]');
+    expect(stageMock).not.toBeNull();
+    expect(stageMock?.getAttribute("aria-hidden")).toBe("true");
   });
 });
